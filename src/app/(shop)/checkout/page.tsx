@@ -15,12 +15,17 @@ export default async function CheckoutPage() {
       <div className="mb-8">
         <h1 className="font-display text-3xl sm:text-4xl">Checkout</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Completa tus datos para crear el pedido
+          Completa tus datos, indica tu banco y sube el comprobante
         </p>
       </div>
       <CheckoutForm
         linkPagoActivo={!!config?.link_pago_activo}
-        datosBancarios={config?.datos_bancarios || ""}
+        comercio={{
+          nombre_negocio: config?.nombre_negocio || "American Shoes",
+          direccion: config?.direccion || "",
+          whatsapp: config?.whatsapp || "",
+          horarios: config?.horarios || "",
+        }}
       />
     </div>
   );

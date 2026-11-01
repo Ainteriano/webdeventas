@@ -26,7 +26,7 @@ export async function POST(
 
   const { data: pedido, error } = await admin
     .from("pedidos")
-    .select("*")
+    .select("*, pedido_items(*)")
     .eq("id", pedidoId)
     .maybeSingle();
 
@@ -62,6 +62,23 @@ export async function POST(
     );
   }
 
+  // Reservar stock ANTES de marcar comprobante (falla si no hay unidades)
+  const { error: reserveErr } = await admin.rpc("reservar_stock_pedido", {
+    p_pedido_id: pedidoId,
+  });
+
+  if (reserveErr) {
+    console.error(reserveErr);
+    return NextResponse.json(
+      {
+        error:
+          reserveErr.message ||
+          "No hay stock suficiente. Otro cliente pudo reservar este producto.",
+      },
+      { status: 409 }
+    );
+  }
+
   const ext =
     file.type === "application/pdf"
       ? "pdf"
@@ -79,6 +96,8 @@ export async function POST(
     });
 
   if (upErr) {
+    // Liberar reserva si falló la subida
+    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
     console.error(upErr);
     return NextResponse.json(
       { error: "No se pudo subir el comprobante" },
@@ -96,10 +115,11 @@ export async function POST(
       motivo_rechazo: null,
     })
     .eq("id", pedidoId)
-    .select("*")
+    .select("*, pedido_items(*)")
     .single();
 
   if (updErr || !updated) {
+    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
     return NextResponse.json(
       { error: "No se pudo actualizar el pedido" },
       { status: 500 }
@@ -111,13 +131,47 @@ export async function POST(
     estadoAnterior
   );
 
+  const { data: config } = await admin
+    .from("configuracion_sitio")
+    .select("nombre_negocio, direccion, whatsapp, horarios")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const items = (updated.pedido_items || []).map(
+    (i: {
+      nombre_snapshot: string;
+      precio_snapshot: number;
+      cantidad: number;
+    }) => ({
+      nombre: i.nombre_snapshot,
+      precio: Number(i.precio_snapshot),
+      cantidad: i.cantidad,
+    })
+  );
+
   return NextResponse.json({
     ok: true,
     mensaje: "En espera de confirmación",
     pedido: {
       id: updated.id,
       codigo: updated.codigo,
+      nombre: updated.nombre,
+      telefono: updated.telefono,
+      correo: updated.correo,
+      direccion: updated.direccion,
+      notas: updated.notas,
+      banco: updated.banco,
+      total: Number(updated.total),
       estado: updated.estado,
+      metodo_pago: updated.metodo_pago,
+      created_at: updated.created_at,
+      items,
+    },
+    comercio: {
+      nombre_negocio: config?.nombre_negocio || "American Shoes",
+      direccion: config?.direccion || "",
+      whatsapp: config?.whatsapp || "",
+      horarios: config?.horarios || "",
     },
   });
 }

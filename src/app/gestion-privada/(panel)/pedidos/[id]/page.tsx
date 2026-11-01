@@ -69,7 +69,8 @@ export default async function PedidoDetallePage({
         <CardHeader>
           <CardTitle className="text-lg">Acciones</CardTitle>
           <CardDescription>
-            Confirmar descuenta stock; rechazar requiere motivo.
+            El stock ya se reserva al subir el comprobante. Confirmar cierra el
+            pedido; rechazar libera la unidad.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -97,6 +98,18 @@ export default async function PedidoDetallePage({
           <div>
             <p className="text-muted-foreground">Método de pago</p>
             <p className="font-medium">{pedido.metodo_pago}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Banco del cliente</p>
+            <p className="font-medium">{pedido.banco || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Stock</p>
+            <p className="font-medium">
+              {pedido.stock_reservado
+                ? "Unidad(es) reservada(s)"
+                : "Sin reserva"}
+            </p>
           </div>
           <div className="sm:col-span-2">
             <p className="text-muted-foreground">Dirección</p>

@@ -61,6 +61,7 @@ export interface Pedido {
   correo: string;
   direccion: string;
   notas: string;
+  banco: string;
   total: number;
   metodo_pago: MetodoPago;
   estado: EstadoPedido;
@@ -68,6 +69,7 @@ export interface Pedido {
   motivo_rechazo: string | null;
   payment_url: string | null;
   payment_reference: string | null;
+  stock_reservado?: boolean;
   created_at: string;
   updated_at?: string;
   pedido_items?: PedidoItem[];

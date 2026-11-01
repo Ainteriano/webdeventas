@@ -115,6 +115,7 @@ export async function POST(request: Request) {
       correo: data.correo,
       direccion: data.direccion,
       notas: data.notas || "",
+      banco: data.banco,
       total,
       metodo_pago: data.metodo_pago,
       estado: estadoInicial,
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
 
   const { data: config } = await admin
     .from("configuracion_sitio")
-    .select("datos_bancarios, nombre_negocio")
+    .select("nombre_negocio, direccion, whatsapp, horarios")
     .eq("id", 1)
     .maybeSingle();
 
@@ -175,13 +176,29 @@ export async function POST(request: Request) {
     pedido: {
       id: fullPedido.id,
       codigo: fullPedido.codigo,
+      nombre: fullPedido.nombre,
+      telefono: fullPedido.telefono,
+      correo: fullPedido.correo,
+      direccion: fullPedido.direccion,
+      notas: fullPedido.notas,
+      banco: data.banco,
       total: fullPedido.total,
       estado: fullPedido.estado,
       metodo_pago: fullPedido.metodo_pago,
+      created_at: fullPedido.created_at,
       payment_url,
       payment_reference,
+      items: lineas.map((l) => ({
+        nombre: l.nombre_snapshot,
+        precio: l.precio_snapshot,
+        cantidad: l.cantidad,
+      })),
     },
-    datos_bancarios: config?.datos_bancarios || "",
-    nombre_negocio: config?.nombre_negocio || "",
+    comercio: {
+      nombre_negocio: config?.nombre_negocio || "American Shoes",
+      direccion: config?.direccion || "",
+      whatsapp: config?.whatsapp || "",
+      horarios: config?.horarios || "",
+    },
   });
 }

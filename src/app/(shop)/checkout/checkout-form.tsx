@@ -5,38 +5,37 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ArrowRight, CheckCircle2, Download } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { checkoutSchema } from "@/lib/validations";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ComprobanteUpload } from "@/components/storefront/comprobante-upload";
+import { descargarPedidoPdf, type PedidoPdfData } from "@/lib/pedido-pdf";
 
 const checkoutFormSchema = checkoutSchema.omit({ items: true });
 type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
 
-type PedidoCreado = {
-  id: string;
-  codigo: string;
-  metodo_pago: string;
-  payment_url?: string | null;
-};
+type Step = "form" | "upload" | "thanks" | "summary";
+
+type PedidoResumen = PedidoPdfData;
 
 export function CheckoutForm({
   linkPagoActivo,
-  datosBancarios,
+  comercio,
 }: {
   linkPagoActivo: boolean;
-  datosBancarios: string;
+  comercio: PedidoPdfData["comercio"];
 }) {
   const items = useCart((s) => s.items);
   const total = useCart((s) => s.total);
   const clear = useCart((s) => s.clear);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [pedido, setPedido] = useState<PedidoCreado | null>(null);
-  const [bancarios, setBancarios] = useState(datosBancarios);
+  const [step, setStep] = useState<Step>("form");
+  const [pedido, setPedido] = useState<PedidoResumen | null>(null);
 
   const {
     register,
@@ -51,13 +50,14 @@ export function CheckoutForm({
       correo: "",
       direccion: "",
       notas: "",
+      banco: "",
       metodo_pago: "TRANSFERENCIA",
     },
   });
 
   const metodo = watch("metodo_pago");
 
-  if (items.length === 0 && !pedido) {
+  if (items.length === 0 && step === "form") {
     return (
       <div className="rounded-xl border border-dashed bg-muted/40 px-6 py-16 text-center">
         <p className="text-muted-foreground">No hay productos en el carrito.</p>
@@ -68,64 +68,155 @@ export function CheckoutForm({
     );
   }
 
-  if (pedido) {
+  // Paso: Gracias
+  if (step === "thanks" && pedido) {
     return (
-      <div className="mx-auto max-w-lg space-y-6 rounded-xl border bg-card p-6 shadow-sm">
-        <div>
-          <h2 className="font-display text-2xl">Pedido creado</h2>
+      <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-card px-6 py-14 text-center shadow-sm animate-fade-in">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 animate-slide-up">
+          <CheckCircle2 className="h-12 w-12" />
+        </div>
+        <h2 className="mt-6 font-display text-3xl animate-slide-up">
+          ¡Gracias por su compra!
+        </h2>
+        <p className="mt-3 text-muted-foreground animate-slide-up">
+          Recibimos tu comprobante. Tu pedido quedó en espera de confirmación y
+          la unidad ya está reservada.
+        </p>
+        <Button
+          size="lg"
+          className="mt-8 animate-slide-up"
+          onClick={() => setStep("summary")}
+        >
+          Siguiente <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  // Paso: Resumen + PDF
+  if (step === "summary" && pedido) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 animate-fade-in">
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+          <p className="text-sm text-muted-foreground">Código de seguimiento</p>
+          <p className="font-mono text-2xl font-semibold tracking-wide">
+            {pedido.codigo}
+          </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Tu código de seguimiento es{" "}
-            <Link
-              href={`/seguimiento/${pedido.codigo}`}
-              className="font-semibold text-primary hover:underline"
-            >
-              {pedido.codigo}
-            </Link>
+            {formatDate(pedido.created_at)}
           </p>
         </div>
 
-        {pedido.metodo_pago === "TRANSFERENCIA" && (
-          <>
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="text-sm font-semibold">Datos bancarios</p>
-              <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
-                {bancarios || "Te contactaremos con los datos de transferencia."}
-              </p>
+        <div className="rounded-xl border bg-card p-6">
+          <h2 className="font-display text-xl">Resumen del pedido</h2>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Cliente</dt>
+              <dd className="font-medium">{pedido.nombre}</dd>
             </div>
             <div>
-              <p className="mb-3 text-sm font-medium">
-                Sube tu comprobante de pago
-              </p>
-              <ComprobanteUpload pedidoId={pedido.id} />
+              <dt className="text-muted-foreground">Teléfono</dt>
+              <dd>{pedido.telefono}</dd>
             </div>
-          </>
-        )}
+            <div>
+              <dt className="text-muted-foreground">Correo</dt>
+              <dd>{pedido.correo}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Banco (transferencia)</dt>
+              <dd>{pedido.banco}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">Dirección</dt>
+              <dd className="whitespace-pre-line">{pedido.direccion}</dd>
+            </div>
+            {pedido.notas ? (
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">Notas</dt>
+                <dd>{pedido.notas}</dd>
+              </div>
+            ) : null}
+          </dl>
 
-        {pedido.metodo_pago === "LINK_PAGO" && (
-          <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-            {pedido.payment_url ? (
-              <p>
-                Continúa el pago en:{" "}
-                <a
-                  href={pedido.payment_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary underline"
-                >
-                  Abrir enlace de pago
-                </a>
-              </p>
-            ) : (
-              <p className="text-muted-foreground">
-                Recibirás el enlace de pago por correo o WhatsApp.
-              </p>
-            )}
+          <ul className="mt-6 space-y-2 border-t pt-4 text-sm">
+            {pedido.items.map((item, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span>
+                  {item.nombre} × {item.cantidad}
+                </span>
+                <span>{formatPrice(item.precio * item.cantidad)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 flex justify-between border-t pt-4 text-lg font-semibold">
+            <span>Total</span>
+            <span className="text-primary">{formatPrice(pedido.total)}</span>
           </div>
-        )}
+        </div>
 
-        <Button asChild variant="outline" className="w-full">
-          <Link href={`/seguimiento/${pedido.codigo}`}>Ver seguimiento</Link>
-        </Button>
+        <div className="rounded-xl border bg-muted/30 p-5 text-sm">
+          <p className="font-medium">{pedido.comercio.nombre_negocio}</p>
+          <p className="mt-1 whitespace-pre-line text-muted-foreground">
+            {pedido.comercio.direccion}
+          </p>
+          {pedido.comercio.whatsapp && (
+            <p className="mt-1 text-muted-foreground">
+              WhatsApp: {pedido.comercio.whatsapp}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            type="button"
+            className="flex-1"
+            onClick={() => descargarPedidoPdf(pedido)}
+          >
+            <Download className="h-4 w-4" />
+            Descargar PDF del pedido
+          </Button>
+          <Button asChild variant="outline" className="flex-1">
+            <Link href={`/seguimiento/${pedido.codigo}`}>
+              Ver seguimiento
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Paso: Subir comprobante
+  if (step === "upload" && pedido) {
+    return (
+      <div className="mx-auto max-w-lg space-y-6 rounded-xl border bg-card p-6 shadow-sm">
+        <div>
+          <h2 className="font-display text-2xl">Sube tu comprobante</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pedido{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {pedido.codigo}
+            </span>
+            . Al subir el comprobante se reserva tu unidad para que nadie más la
+            compre mientras confirmamos.
+          </p>
+        </div>
+        {pedido.id ? (
+          <ComprobanteUpload
+            pedidoId={pedido.id}
+            onSuccess={({ pedido: p, comercio: c }) => {
+              setPedido({
+                ...p,
+                id: p.id || pedido.id,
+                comercio: c,
+              });
+              setStep("thanks");
+            }}
+          />
+        ) : (
+          <p className="text-sm text-destructive">
+            No se encontró el ID del pedido. Recarga e intenta de nuevo.
+          </p>
+        )}
       </div>
     );
   }
@@ -159,15 +250,24 @@ export function CheckoutForm({
         );
       }
 
-      const created: PedidoCreado = data.pedido || data;
-      if (data.datos_bancarios) setBancarios(data.datos_bancarios);
+      const created = data.pedido;
       clear();
       setPedido({
         id: created.id,
         codigo: created.codigo,
-        metodo_pago: created.metodo_pago || parsed.data.metodo_pago,
-        payment_url: created.payment_url ?? data.payment_url ?? null,
+        nombre: created.nombre,
+        telefono: created.telefono,
+        correo: created.correo,
+        direccion: created.direccion,
+        notas: created.notas,
+        banco: created.banco,
+        total: Number(created.total),
+        metodo_pago: created.metodo_pago,
+        created_at: created.created_at,
+        items: created.items || [],
+        comercio: data.comercio || comercio,
       });
+      setStep("upload");
     } catch (err) {
       setServerError(
         err instanceof Error ? err.message : "Error al crear el pedido"
@@ -232,6 +332,20 @@ export function CheckoutForm({
             )}
           </div>
           <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="banco">Banco de la transferencia</Label>
+            <Input
+              id="banco"
+              placeholder="Ej. BAC, Banpaís, Ficohsa…"
+              {...register("banco")}
+            />
+            {errors.banco && (
+              <p className="text-sm text-destructive">{errors.banco.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Indica desde qué banco harás la transferencia
+            </p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="notas">Notas (opcional)</Label>
             <Textarea id="notas" rows={2} {...register("notas")} />
           </div>
@@ -249,7 +363,7 @@ export function CheckoutForm({
             <span>
               <span className="block font-medium">Transferencia bancaria</span>
               <span className="text-xs text-muted-foreground">
-                Recibirás los datos para depositar y subir el comprobante
+                Sube el comprobante al finalizar para reservar tu par
               </span>
             </span>
           </label>
@@ -276,16 +390,8 @@ export function CheckoutForm({
                   </span>
                 )}
               </span>
-              <span className="text-xs text-muted-foreground">
-                Paga en línea con un enlace seguro
-              </span>
             </span>
           </label>
-          {errors.metodo_pago && (
-            <p className="text-sm text-destructive">
-              {errors.metodo_pago.message}
-            </p>
-          )}
         </fieldset>
 
         {serverError && (
@@ -300,7 +406,7 @@ export function CheckoutForm({
           className="w-full sm:w-auto"
           disabled={isSubmitting || (metodo === "LINK_PAGO" && !linkPagoActivo)}
         >
-          {isSubmitting ? "Creando pedido…" : "Confirmar pedido"}
+          {isSubmitting ? "Creando pedido…" : "Continuar"}
         </Button>
       </div>
 
@@ -320,7 +426,9 @@ export function CheckoutForm({
         </ul>
         <div className="mt-4 flex justify-between border-t pt-4 font-semibold">
           <span>Total</span>
-          <span className="tabular-nums text-primary">{formatPrice(total())}</span>
+          <span className="tabular-nums text-primary">
+            {formatPrice(total())}
+          </span>
         </div>
         <Button asChild variant="ghost" size="sm" className="mt-3 w-full">
           <Link href="/carrito">Editar carrito</Link>

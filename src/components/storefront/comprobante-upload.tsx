@@ -9,18 +9,21 @@ import {
   COMPROBANTE_MIME,
   MAX_COMPROBANTE_BYTES,
 } from "@/lib/validations";
+import type { PedidoPdfData } from "@/lib/pedido-pdf";
 
 export function ComprobanteUpload({
   pedidoId,
   onSuccess,
 }: {
   pedidoId: string;
-  onSuccess?: () => void;
+  onSuccess?: (data: {
+    pedido: PedidoPdfData;
+    comercio: PedidoPdfData["comercio"];
+  }) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,10 +51,14 @@ export function ComprobanteUpload({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || data.message || "No se pudo subir el comprobante");
+        throw new Error(
+          data.error || data.message || "No se pudo subir el comprobante"
+        );
       }
-      setDone(true);
-      onSuccess?.();
+      onSuccess?.({
+        pedido: data.pedido,
+        comercio: data.comercio,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al subir");
     } finally {
@@ -59,18 +66,12 @@ export function ComprobanteUpload({
     }
   }
 
-  if (done) {
-    return (
-      <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-        Comprobante enviado. Revisaremos tu pago y actualizaremos el estado del pedido.
-      </p>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-2">
-        <Label htmlFor="comprobante">Comprobante de pago (JPG, PNG o PDF, máx. 5 MB)</Label>
+        <Label htmlFor="comprobante">
+          Comprobante de pago (JPG, PNG o PDF, máx. 5 MB)
+        </Label>
         <Input
           id="comprobante"
           type="file"
@@ -81,7 +82,7 @@ export function ComprobanteUpload({
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading || !file}>
         <Upload className="h-4 w-4" />
-        {loading ? "Subiendo…" : "Subir comprobante"}
+        {loading ? "Subiendo y reservando stock…" : "Subir comprobante"}
       </Button>
     </form>
   );
