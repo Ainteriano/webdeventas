@@ -8,7 +8,7 @@ import { z } from "zod";
 import { CheckCircle2, Copy, Download } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { checkoutSchema } from "@/lib/validations";
-import { formatPrice, formatDate } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ import { scrollToPageTop } from "@/lib/scroll-top";
 const checkoutFormSchema = checkoutSchema.omit({ items: true });
 type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
 
-type Step = "form" | "upload" | "summary" | "done";
+type Step = "form" | "upload" | "confirm" | "done";
 type PedidoResumen = PedidoPdfData;
 type CheckoutDraft = z.infer<typeof checkoutSchema>;
 
@@ -37,9 +37,13 @@ export function CheckoutForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("form");
   const [draft, setDraft] = useState<CheckoutDraft | null>(null);
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
+  const [comprobantePreview, setComprobantePreview] = useState<string | null>(
+    null
+  );
   const [pedido, setPedido] = useState<PedidoResumen | null>(null);
+  const [completing, setCompleting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const pdfAutoDone = useRef(false);
   const topRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -77,19 +81,11 @@ export function CheckoutForm({
     topRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   }, [step]);
 
-  // Auto-descargar PDF al entrar al resumen
   useEffect(() => {
-    if (step !== "summary" || !pedido || pdfAutoDone.current) return;
-    pdfAutoDone.current = true;
-    const t = window.setTimeout(() => {
-      try {
-        descargarPedidoPdf(pedido);
-      } catch {
-        /* el usuario puede descargar manualmente */
-      }
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [step, pedido]);
+    return () => {
+      if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
+    };
+  }, [comprobantePreview]);
 
   if (items.length === 0 && step === "form") {
     return (
@@ -102,110 +98,7 @@ export function CheckoutForm({
     );
   }
 
-  // Paso: Resumen + PDF (antes de cerrar)
-  if (step === "summary" && pedido) {
-    return (
-      <div ref={topRef} className="mx-auto max-w-2xl space-y-4 animate-fade-in sm:space-y-5">
-        <div className="rounded-xl border-2 border-amber-400/60 bg-amber-50 px-4 py-4 text-center sm:px-5">
-          <p className="text-sm font-semibold text-amber-950 sm:text-base">
-            ¡No olvides guardar el número de seguimiento, es muy importante!
-          </p>
-          <p className="mt-3 break-all font-mono text-xl font-bold tracking-wider text-foreground sm:text-3xl">
-            {pedido.codigo}
-          </p>
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(pedido.codigo);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 2000);
-                } catch {
-                  /* ignore */
-                }
-              }}
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {copied ? "Copiado" : "Copiar código"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => descargarPedidoPdf(pedido)}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Descargar PDF
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-amber-900/80">
-            El PDF se descarga automáticamente. Si no aparece, tócalo arriba.
-          </p>
-        </div>
-
-        <div className="rounded-xl border bg-card p-4 sm:p-6">
-          <h2 className="font-display text-lg sm:text-xl">Resumen del pedido</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {formatDate(pedido.created_at)}
-          </p>
-
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-muted-foreground">Cliente</dt>
-              <dd className="font-medium">{pedido.nombre}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Teléfono</dt>
-              <dd>{pedido.telefono}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Correo</dt>
-              <dd>{pedido.correo}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Banco de origen</dt>
-              <dd>{pedido.banco}</dd>
-            </div>
-            {pedido.direccion ? (
-              <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">Dirección</dt>
-                <dd className="whitespace-pre-line">{pedido.direccion}</dd>
-              </div>
-            ) : null}
-          </dl>
-
-          <ul className="mt-6 space-y-2 border-t pt-4 text-sm">
-            {pedido.items.map((item, i) => (
-              <li key={i} className="flex justify-between gap-3">
-                <span>
-                  {item.nombre}
-                  {item.talla ? ` · Talla ${item.talla}` : ""} × {item.cantidad}
-                </span>
-                <span>{formatPrice(item.precio * item.cantidad)}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 flex justify-between border-t pt-4 text-lg font-semibold">
-            <span>Total</span>
-            <span className="text-primary">{formatPrice(pedido.total)}</span>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          size="lg"
-          className="h-12 w-full text-base"
-          onClick={() => goToStep("done")}
-        >
-          Completar
-        </Button>
-      </div>
-    );
-  }
-
-  // Paso final: compra enviada / pendiente
+  // Paso final: compra realizada
   if (step === "done" && pedido) {
     return (
       <div
@@ -220,20 +113,40 @@ export function CheckoutForm({
           Tu pedido está pendiente de confirmación. Guarda tu código de
           seguimiento.
         </p>
-        <p className="mt-5 font-mono text-xl font-semibold tracking-wide">
+        <p className="mt-5 break-all font-mono text-xl font-semibold tracking-wide">
           {pedido.codigo}
         </p>
-        <div className="mt-8 flex w-full flex-col gap-2">
-          <Button asChild size="lg">
-            <Link href={`/seguimiento/${pedido.codigo}`}>Ver seguimiento</Link>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(pedido.codigo);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2000);
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {copied ? "Copiado" : "Copiar código"}
           </Button>
           <Button
             type="button"
             variant="outline"
+            size="sm"
             onClick={() => descargarPedidoPdf(pedido)}
           >
-            <Download className="h-4 w-4" />
-            Descargar PDF otra vez
+            <Download className="h-3.5 w-3.5" />
+            Descargar PDF
+          </Button>
+        </div>
+        <div className="mt-8 flex w-full flex-col gap-2">
+          <Button asChild size="lg">
+            <Link href={`/seguimiento/${pedido.codigo}`}>Ver seguimiento</Link>
           </Button>
           <Button asChild variant="ghost">
             <Link href="/catalogo">Volver al catálogo</Link>
@@ -243,7 +156,116 @@ export function CheckoutForm({
     );
   }
 
-  // Paso: Subir comprobante (aún NO hay pedido en la base de datos)
+  // Paso: confirmar y completar (aquí se registra el pedido)
+  if (step === "confirm" && draft && comprobanteFile) {
+    return (
+      <div
+        ref={topRef}
+        className="mx-auto max-w-lg space-y-5 rounded-xl border bg-card p-4 shadow-sm sm:space-y-6 sm:p-6"
+      >
+        <div>
+          <h2 className="font-display text-xl sm:text-2xl">Confirmar compra</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Al completar se registra tu pedido y se descarga el comprobante PDF.
+            Si sales ahora, no se crea ningún pedido.
+          </p>
+        </div>
+
+        {comprobantePreview && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={comprobantePreview}
+            alt="Comprobante"
+            className="mx-auto max-h-56 w-full rounded-lg border object-contain bg-muted"
+          />
+        )}
+        <p className="truncate text-center text-sm text-muted-foreground">
+          {comprobanteFile.name}
+        </p>
+
+        <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-muted-foreground">Cliente</span>
+            <span className="font-medium">{draft.nombre}</span>
+          </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-semibold text-primary">
+              {formatPrice(total())}
+            </span>
+          </div>
+        </div>
+
+        {serverError && (
+          <p className="text-sm text-destructive">{serverError}</p>
+        )}
+
+        <Button
+          type="button"
+          size="lg"
+          className="h-12 w-full text-base"
+          disabled={completing}
+          onClick={async () => {
+            setServerError(null);
+            setCompleting(true);
+            try {
+              const body = new FormData();
+              body.append("comprobante", comprobanteFile);
+              body.append("checkout", JSON.stringify(draft));
+              const res = await fetch("/api/pedidos/completar", {
+                method: "POST",
+                body,
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                throw new Error(
+                  data.error || data.message || "No se pudo completar la compra"
+                );
+              }
+              const created = {
+                ...data.pedido,
+                comercio: data.comercio || comercio,
+              } as PedidoResumen;
+              clear();
+              setDraft(null);
+              setComprobanteFile(null);
+              if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
+              setComprobantePreview(null);
+              setPedido(created);
+              try {
+                descargarPedidoPdf(created);
+              } catch {
+                /* el usuario puede descargar en la pantalla final */
+              }
+              goToStep("done");
+            } catch (err) {
+              setServerError(
+                err instanceof Error ? err.message : "Error al completar"
+              );
+            } finally {
+              setCompleting(false);
+            }
+          }}
+        >
+          {completing ? "Completando compra…" : "Completar compra"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          disabled={completing}
+          onClick={() => {
+            setServerError(null);
+            goToStep("upload");
+          }}
+        >
+          Cambiar comprobante
+        </Button>
+      </div>
+    );
+  }
+
+  // Paso: elegir foto del comprobante (aún NO hay pedido)
   if (step === "upload" && draft) {
     return (
       <div
@@ -253,21 +275,19 @@ export function CheckoutForm({
         <div>
           <h2 className="font-display text-xl sm:text-2xl">Sube tu comprobante</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Tu pedido se registrará solo cuando completes este paso. Si sales
-            ahora, no se crea ningún pedido.
+            Elige la foto del depósito. El pedido se registra en el siguiente
+            paso.
           </p>
         </div>
         <ComprobanteUpload
-          checkout={draft}
-          onSuccess={({ pedido: p, comercio: c }) => {
-            pdfAutoDone.current = false;
-            clear();
-            setDraft(null);
-            setPedido({
-              ...p,
-              comercio: c,
-            });
-            goToStep("summary");
+          mode="pick"
+          submitLabel="Subir comprobante"
+          onPicked={(file) => {
+            if (comprobantePreview) URL.revokeObjectURL(comprobantePreview);
+            setComprobanteFile(file);
+            setComprobantePreview(URL.createObjectURL(file));
+            setServerError(null);
+            goToStep("confirm");
           }}
         />
       </div>
@@ -425,7 +445,7 @@ export function CheckoutForm({
           className="h-12 w-full text-base"
           disabled={isSubmitting || (metodo === "LINK_PAGO" && !linkPagoActivo)}
         >
-          {isSubmitting ? "Creando pedido…" : "Continuar"}
+          {isSubmitting ? "Continuando…" : "Continuar"}
         </Button>
       </div>
 

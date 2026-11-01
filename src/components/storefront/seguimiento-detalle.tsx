@@ -122,7 +122,9 @@ export function SeguimientoDetalle({ codigo }: { codigo: string }) {
           </p>
           <div className="mt-4">
             <ComprobanteUpload
+              mode="resubmit"
               pedidoId={pedido.id}
+              submitLabel="Subir comprobante"
               onSuccess={() => void load()}
             />
           </div>

@@ -4,33 +4,39 @@ import { useRef, useState } from "react";
 import { Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { MAX_COMPROBANTE_BYTES, checkoutSchema } from "@/lib/validations";
+import { MAX_COMPROBANTE_BYTES } from "@/lib/validations";
 import type { PedidoPdfData } from "@/lib/pedido-pdf";
-import type { z } from "zod";
 
 const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;
 
-type CheckoutPayload = z.infer<typeof checkoutSchema>;
+type Props =
+  | {
+      /** Solo elige la foto y avanza (checkout). No crea el pedido. */
+      mode: "pick";
+      submitLabel?: string;
+      onPicked: (file: File) => void;
+    }
+  | {
+      /** Re-subida en seguimiento (pedido ya existente). */
+      mode: "resubmit";
+      pedidoId: string;
+      submitLabel?: string;
+      onSuccess?: (data: {
+        pedido: PedidoPdfData;
+        comercio: PedidoPdfData["comercio"];
+      }) => void;
+    };
 
-export function ComprobanteUpload({
-  checkout,
-  pedidoId,
-  onSuccess,
-}: {
-  /** Flujo nuevo: crea el pedido al completar (con foto). */
-  checkout?: CheckoutPayload;
-  /** Re-subida en seguimiento (pedido ya existente). */
-  pedidoId?: string;
-  onSuccess?: (data: {
-    pedido: PedidoPdfData;
-    comercio: PedidoPdfData["comercio"];
-  }) => void;
-}) {
+export function ComprobanteUpload(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const submitLabel =
+    props.submitLabel ||
+    (props.mode === "pick" ? "Subir comprobante" : "Subir comprobante");
 
   function onPick(fileList: FileList | null) {
     const next = fileList?.[0] || null;
@@ -65,8 +71,9 @@ export function ComprobanteUpload({
       setError("Selecciona una foto de tu galería");
       return;
     }
-    if (!checkout && !pedidoId) {
-      setError("Faltan datos de la compra");
+
+    if (props.mode === "pick") {
+      props.onPicked(file);
       return;
     }
 
@@ -74,30 +81,22 @@ export function ComprobanteUpload({
     try {
       const body = new FormData();
       body.append("comprobante", file);
-
-      let res: Response;
-      if (checkout) {
-        body.append("checkout", JSON.stringify(checkout));
-        res = await fetch("/api/pedidos/completar", { method: "POST", body });
-      } else {
-        res = await fetch(`/api/pedidos/${pedidoId}/comprobante`, {
-          method: "POST",
-          body,
-        });
-      }
-
+      const res = await fetch(`/api/pedidos/${props.pedidoId}/comprobante`, {
+        method: "POST",
+        body,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          data.error || data.message || "No se pudo completar la compra"
+          data.error || data.message || "No se pudo subir el comprobante"
         );
       }
-      onSuccess?.({
+      props.onSuccess?.({
         pedido: data.pedido,
         comercio: data.comercio,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al completar");
+      setError(err instanceof Error ? err.message : "Error al subir");
     } finally {
       setLoading(false);
     }
@@ -145,7 +144,7 @@ export function ComprobanteUpload({
         disabled={loading || !file}
         className="h-12 w-full text-base"
       >
-        {loading ? "Completando compra…" : "Completar compra"}
+        {loading ? "Subiendo…" : submitLabel}
       </Button>
     </form>
   );
