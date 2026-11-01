@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, getAdminPath } from "@/lib/admin";
 import {
@@ -16,15 +15,17 @@ async function assertAdmin() {
   if (!isAdmin) throw new Error("No autorizado");
 }
 
-function revalidatePedidos() {
+function revalidatePedidos(pedidoId?: string) {
   const base = getAdminPath();
   revalidatePath(`${base}/pedidos`);
+  if (pedidoId) revalidatePath(`${base}/pedidos/${pedidoId}`);
   revalidatePath(base);
+  revalidatePath("/");
+  revalidatePath("/catalogo");
 }
 
 export async function confirmarPedidoAction(pedidoId: string) {
   await assertAdmin();
-  const supabase = createClient();
   const admin = createAdminClient();
 
   const { data: before } = await admin
@@ -33,7 +34,7 @@ export async function confirmarPedidoAction(pedidoId: string) {
     .eq("id", pedidoId)
     .single();
 
-  const { data, error } = await supabase.rpc("confirmar_pedido", {
+  const { data, error } = await admin.rpc("confirmar_pedido", {
     p_pedido_id: pedidoId,
   });
 
@@ -46,7 +47,7 @@ export async function confirmarPedidoAction(pedidoId: string) {
     );
   }
 
-  revalidatePedidos();
+  revalidatePedidos(pedidoId);
   return { ok: true, pedido: data };
 }
 
@@ -55,7 +56,6 @@ export async function rechazarPedidoAction(input: unknown) {
   const parsed = rechazarPedidoSchema.safeParse(input);
   if (!parsed.success) return { error: "Motivo inválido" };
 
-  const supabase = createClient();
   const admin = createAdminClient();
   const { data: before } = await admin
     .from("pedidos")
@@ -63,7 +63,7 @@ export async function rechazarPedidoAction(input: unknown) {
     .eq("id", parsed.data.pedido_id)
     .single();
 
-  const { data, error } = await supabase.rpc("rechazar_pedido", {
+  const { data, error } = await admin.rpc("rechazar_pedido", {
     p_pedido_id: parsed.data.pedido_id,
     p_motivo: parsed.data.motivo,
   });
@@ -77,7 +77,7 @@ export async function rechazarPedidoAction(input: unknown) {
     );
   }
 
-  revalidatePedidos();
+  revalidatePedidos(parsed.data.pedido_id);
   return { ok: true };
 }
 
@@ -97,7 +97,6 @@ export async function actualizarEstadoPedidoAction(input: unknown) {
     return confirmarPedidoAction(parsed.data.pedido_id);
   }
 
-  const supabase = createClient();
   const admin = createAdminClient();
   const { data: before } = await admin
     .from("pedidos")
@@ -105,12 +104,19 @@ export async function actualizarEstadoPedidoAction(input: unknown) {
     .eq("id", parsed.data.pedido_id)
     .single();
 
-  const { data, error } = await supabase.rpc("actualizar_estado_pedido", {
+  const { data, error } = await admin.rpc("actualizar_estado_pedido", {
     p_pedido_id: parsed.data.pedido_id,
     p_estado: parsed.data.estado,
   });
 
   if (error) return { error: error.message };
+
+  if (parsed.data.estado === "CANCELADO" && parsed.data.motivo) {
+    await admin
+      .from("pedidos")
+      .update({ motivo_rechazo: parsed.data.motivo })
+      .eq("id", parsed.data.pedido_id);
+  }
 
   if (before && data) {
     void notifyCambioEstado(
@@ -119,7 +125,7 @@ export async function actualizarEstadoPedidoAction(input: unknown) {
     );
   }
 
-  revalidatePedidos();
+  revalidatePedidos(parsed.data.pedido_id);
   return { ok: true };
 }
 
@@ -138,6 +144,8 @@ export async function getComprobanteSignedUrl(pedidoId: string) {
     .from("comprobantes")
     .createSignedUrl(pedido.comprobante_path, 60 * 10);
 
-  if (error || !data) return { error: error?.message || "No se pudo firmar URL" };
+  if (error || !data) {
+    return { error: error?.message || "No se pudo firmar URL" };
+  }
   return { ok: true, url: data.signedUrl };
 }

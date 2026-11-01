@@ -112,6 +112,28 @@ export async function POST(request: Request) {
       ? codigoRow
       : `PED-${Date.now().toString(36).toUpperCase()}`;
 
+  // Evitar duplicados: cancelar intentos previos sin pago del mismo correo
+  await admin
+    .from("pedidos")
+    .update({
+      estado: "CANCELADO",
+      motivo_rechazo: "Reemplazado por un nuevo intento de compra",
+    })
+    .eq("correo", data.correo.trim().toLowerCase())
+    .eq("estado", "PENDIENTE_PAGO")
+    .eq("stock_reservado", false);
+
+  // También por teléfono (por si el correo varía)
+  await admin
+    .from("pedidos")
+    .update({
+      estado: "CANCELADO",
+      motivo_rechazo: "Reemplazado por un nuevo intento de compra",
+    })
+    .eq("telefono", data.telefono.trim())
+    .eq("estado", "PENDIENTE_PAGO")
+    .eq("stock_reservado", false);
+
   // Crear pedido SIN reservar stock (la reserva es al subir comprobante)
   const { data: pedido, error: pedErr } = await admin
     .from("pedidos")
@@ -119,7 +141,7 @@ export async function POST(request: Request) {
       codigo,
       nombre: data.nombre,
       telefono: data.telefono,
-      correo: data.correo,
+      correo: data.correo.trim().toLowerCase(),
       direccion: data.direccion?.trim() || "",
       notas: "",
       banco: data.banco,

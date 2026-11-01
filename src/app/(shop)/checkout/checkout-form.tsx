@@ -239,6 +239,7 @@ export function CheckoutForm({
             pedidoId={pedido.id}
             onSuccess={({ pedido: p, comercio: c }) => {
               pdfAutoDone.current = false;
+              clear();
               setPedido({
                 ...p,
                 id: p.id || pedido.id,
@@ -299,7 +300,6 @@ export function CheckoutForm({
       }
 
       const created = data.pedido;
-      clear();
       setPedido({
         id: created.id,
         codigo: created.codigo,
@@ -315,6 +315,7 @@ export function CheckoutForm({
         items: created.items || [],
         comercio: data.comercio || comercio,
       });
+      // Carrito se limpia al completar el pago (comprobante), no al iniciar
       setStep("upload");
     } catch (err) {
       setServerError(

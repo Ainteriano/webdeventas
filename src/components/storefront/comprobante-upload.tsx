@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Upload } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   COMPROBANTE_MIME,
@@ -22,14 +21,26 @@ export function ComprobanteUpload({
   }) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function onPick(fileList: FileList | null) {
+    const next = fileList?.[0] || null;
+    setError(null);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    setFile(next);
+    if (next?.type.startsWith("image/")) {
+      setPreview(URL.createObjectURL(next));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!file) {
-      setError("Selecciona un archivo");
+      setError("Selecciona una foto de tu galería");
       return;
     }
     if (!COMPROBANTE_MIME.includes(file.type as (typeof COMPROBANTE_MIME)[number])) {
@@ -67,21 +78,43 @@ export function ComprobanteUpload({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="comprobante">
-          Comprobante de pago (JPG, PNG o PDF, máx. 5 MB)
-        </Label>
-        <Input
+        <Label htmlFor="comprobante">Foto del comprobante</Label>
+        <label
+          htmlFor="comprobante"
+          className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground hover:border-primary/40 hover:bg-muted/50"
+        >
+          <ImageIcon className="h-8 w-8" />
+          <span className="font-medium text-foreground">
+            {file ? file.name : "Elegir de la galería"}
+          </span>
+          <span className="text-xs">JPG, PNG o PDF · máx. 5 MB</span>
+        </label>
+        {/* Sin capture= → en móvil abre galería / archivos, no solo cámara */}
+        <input
           id="comprobante"
           type="file"
-          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          accept="image/*,image/jpeg,image/png,image/jpg,application/pdf,.jpg,.jpeg,.png,.pdf"
+          className="sr-only"
+          onChange={(e) => {
+            onPick(e.target.files);
+            e.target.value = "";
+          }}
         />
       </div>
+
+      {preview && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={preview}
+          alt="Vista previa"
+          className="max-h-56 w-full rounded-lg border object-contain bg-muted"
+        />
+      )}
+
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading || !file} className="w-full">
-        <Upload className="h-4 w-4" />
         {loading ? "Completando compra…" : "Siguiente"}
       </Button>
     </form>

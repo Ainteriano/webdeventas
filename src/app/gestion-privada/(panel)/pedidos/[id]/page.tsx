@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminPath } from "@/lib/admin";
 import { formatPrice } from "@/lib/format";
 import { etiquetaEstadoSimple } from "@/lib/estados-pedido";
@@ -10,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -23,6 +23,7 @@ export default async function PedidoDetallePage({
   params: { id: string };
 }) {
   const supabase = createClient();
+  const admin = createAdminClient();
   const adminPath = getAdminPath();
 
   const { data } = await supabase
@@ -33,6 +34,14 @@ export default async function PedidoDetallePage({
 
   if (!data) notFound();
 
+  let comprobanteUrl: string | null = null;
+  if (data.comprobante_path) {
+    const { data: signed } = await admin.storage
+      .from("comprobantes")
+      .createSignedUrl(data.comprobante_path, 60 * 10);
+    comprobanteUrl = signed?.signedUrl || null;
+  }
+
   const pedido = {
     ...data,
     total: Number(data.total),
@@ -42,6 +51,7 @@ export default async function PedidoDetallePage({
         cantidad: number;
         id: string;
         nombre_snapshot: string;
+        talla_snapshot?: string;
       }) => ({
         ...i,
         precio_snapshot: Number(i.precio_snapshot),
@@ -56,7 +66,7 @@ export default async function PedidoDetallePage({
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2">
             <Link href={`${adminPath}/pedidos`}>← Pedidos</Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight">
             {pedido.codigo}
           </h1>
           <p className="text-muted-foreground">
@@ -69,13 +79,12 @@ export default async function PedidoDetallePage({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Acciones</CardTitle>
-          <CardDescription>
-            El stock ya se reserva al subir el comprobante. Confirmar cierra el
-            pedido; rechazar libera la unidad.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <PedidoAcciones pedido={pedido} />
+          <PedidoAcciones
+            pedido={pedido}
+            initialComprobanteUrl={comprobanteUrl}
+          />
         </CardContent>
       </Card>
 
@@ -97,34 +106,16 @@ export default async function PedidoDetallePage({
             <p className="font-medium break-all">{pedido.correo}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">Método de pago</p>
-            <p className="font-medium">{pedido.metodo_pago}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Banco del cliente</p>
+            <p className="text-muted-foreground">Banco</p>
             <p className="font-medium">{pedido.banco || "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Stock</p>
-            <p className="font-medium">
-              {pedido.stock_reservado
-                ? "Unidad(es) reservada(s)"
-                : "Sin reserva"}
-            </p>
           </div>
           <div className="sm:col-span-2">
             <p className="text-muted-foreground">Dirección</p>
             <p className="font-medium">{pedido.direccion || "—"}</p>
           </div>
-          {pedido.notas && (
-            <div className="sm:col-span-2">
-              <p className="text-muted-foreground">Notas</p>
-              <p className="font-medium whitespace-pre-wrap">{pedido.notas}</p>
-            </div>
-          )}
           {pedido.motivo_rechazo && (
             <div className="sm:col-span-2">
-              <p className="text-muted-foreground">Motivo de rechazo</p>
+              <p className="text-muted-foreground">Motivo</p>
               <p className="font-medium text-destructive">
                 {pedido.motivo_rechazo}
               </p>
