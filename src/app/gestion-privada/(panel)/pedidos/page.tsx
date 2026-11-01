@@ -62,14 +62,7 @@ export default async function PedidosPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Pedidos
-        </h1>
-        <p className="text-muted-foreground">
-          Lista filtrable por estado. Abre un pedido para confirmar o rechazar.
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Pedidos</h1>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {ESTADOS.map((e) => {

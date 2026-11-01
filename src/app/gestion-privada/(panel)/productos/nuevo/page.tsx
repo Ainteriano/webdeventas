@@ -12,13 +12,8 @@ export default async function NuevoProductoPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Nuevo producto</h1>
-        <p className="text-sm text-muted-foreground">
-          Guarda el producto y luego agrega fotos en la edición
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="text-2xl font-semibold tracking-tight">Nuevo producto</h1>
       <ProductoForm
         categorias={(categorias || []) as Categoria[]}
         subcategorias={(subcategorias || []) as Subcategoria[]}

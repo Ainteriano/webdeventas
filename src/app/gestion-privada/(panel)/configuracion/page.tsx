@@ -24,15 +24,8 @@ export default async function ConfiguracionPage() {
   }) as ConfiguracionSitio;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Configuración
-        </h1>
-        <p className="text-muted-foreground">
-          Datos del negocio, contacto, mapa y pagos.
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
       <ConfigForm config={config} />
     </div>
   );

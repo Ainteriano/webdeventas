@@ -18,15 +18,8 @@ export default async function CategoriasPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Categorías
-        </h1>
-        <p className="text-muted-foreground">
-          Administra categorías y subcategorías del catálogo.
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="text-2xl font-semibold tracking-tight">Categorías</h1>
       <CategoriasManager categorias={categorias} />
     </div>
   );

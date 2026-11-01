@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  ArrowDown,
+  ArrowUp,
+  ImagePlus,
+  Replace,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { productoSchema } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +56,6 @@ import type {
 } from "@/types/database";
 
 type FormValues = z.infer<typeof productoSchema>;
-
 type PendingPreview = { id: string; file: File; url: string };
 
 export function ProductoForm({
@@ -64,6 +72,7 @@ export function ProductoForm({
   adminPath: string;
 }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [imgs, setImgs] = useState(imagenes);
@@ -107,28 +116,35 @@ export function ProductoForm({
     [subcategorias, categoriaId]
   );
 
-  function addPendingFiles(fileList: FileList | null) {
-    if (!fileList?.length) return;
-    const next: PendingPreview[] = [];
+  function validateFiles(fileList: FileList | null): File[] {
+    if (!fileList?.length) return [];
+    const ok: File[] = [];
     for (const file of Array.from(fileList)) {
       if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
-        setError("Solo se permiten JPG, PNG o WEBP");
+        setError("Solo JPG, PNG o WEBP");
         continue;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setError("Cada imagen debe pesar máximo 5 MB");
+        setError("Máximo 5 MB por foto");
         continue;
       }
-      next.push({
+      ok.push(file);
+    }
+    return ok;
+  }
+
+  function addPendingFiles(fileList: FileList | null) {
+    const files = validateFiles(fileList);
+    if (!files.length) return;
+    setError(null);
+    setPendingFiles((prev) => [
+      ...prev,
+      ...files.map((file) => ({
         id: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
         file,
         url: URL.createObjectURL(file),
-      });
-    }
-    if (next.length) {
-      setError(null);
-      setPendingFiles((prev) => [...prev, ...next]);
-    }
+      })),
+    ]);
   }
 
   function removePending(id: string) {
@@ -155,7 +171,7 @@ export function ProductoForm({
 
       const res = await crearProducto(values);
       if (res.error || !("id" in res) || !res.id) {
-        setError(res.error || "No se pudo crear el producto");
+        setError(res.error || "No se pudo crear");
         return;
       }
 
@@ -164,24 +180,24 @@ export function ProductoForm({
         fd.append("file", item.file);
         const up = await subirImagenProducto(res.id, fd);
         if (up.error) {
-          setError(
-            `Producto creado, pero falló una foto: ${up.error}. Puedes completarlas editando el producto.`
-          );
+          setError(up.error);
           router.push(`${adminPath}/productos/${res.id}`);
           router.refresh();
           return;
         }
       }
 
-      router.push(`${adminPath}/productos/${res.id}`);
+      router.push(`${adminPath}/productos`);
       router.refresh();
     });
   }
 
   async function onUploadExisting(fileList: FileList | null) {
-    if (!producto || !fileList?.length) return;
+    if (!producto) return;
+    const files = validateFiles(fileList);
+    if (!files.length) return;
     setError(null);
-    for (const file of Array.from(fileList)) {
+    for (const file of files) {
       const fd = new FormData();
       fd.append("file", file);
       const res = await subirImagenProducto(producto.id, fd);
@@ -210,171 +226,72 @@ export function ProductoForm({
     });
   }
 
+  const photoCount = producto ? imgs.length : pendingFiles.length;
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label>Nombre</Label>
-          <Input {...register("nombre")} />
-          {errors.nombre && (
-            <p className="text-sm text-destructive">{errors.nombre.message}</p>
-          )}
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>Slug (opcional)</Label>
-          <Input {...register("slug")} placeholder="se-genera-automatico" />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>Descripción</Label>
-          <Textarea rows={4} {...register("descripcion")} />
-        </div>
-        <div className="space-y-2">
-          <Label>Precio (Lempiras)</Label>
-          <Input type="number" step="0.01" {...register("precio")} />
-        </div>
-        <div className="space-y-2">
-          <Label>Stock</Label>
-          <Input type="number" {...register("stock")} />
-        </div>
-        <div className="space-y-2">
-          <Label>Categoría</Label>
-          <Select
-            value={categoriaId}
-            onValueChange={(v) => {
-              setValue("categoria_id", v);
-              setValue("subcategoria_id", null);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona" />
-            </SelectTrigger>
-            <SelectContent>
-              {categorias.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Subcategoría</Label>
-          <Select
-            value={watch("subcategoria_id") || "none"}
-            onValueChange={(v) =>
-              setValue("subcategoria_id", v === "none" ? null : v)
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Opcional" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Ninguna</SelectItem>
-              {subs.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Fotos */}
+      <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Fotos</h2>
+          <span className="text-xs text-muted-foreground">{photoCount}</span>
         </div>
 
-        <div className="space-y-2 rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label>Disponible para compra</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Si lo apagas, el zapato sigue en el sitio (gris, sin precio),
-                pero no se puede comprar.
-              </p>
-            </div>
-            <Switch
-              checked={watch("disponible")}
-              onCheckedChange={(v) => setValue("disponible", v)}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2 rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label>Activo en el catálogo</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Si lo apagas, desaparece del sitio público. No se borra de la
-                base de datos.
-              </p>
-            </div>
-            <Switch
-              checked={watch("activo")}
-              onCheckedChange={(v) => setValue("activo", v)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Imágenes: también al crear */}
-      <div className="space-y-3 rounded-lg border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="font-medium">Fotos del producto</h3>
-            <p className="text-xs text-muted-foreground">
-              JPG, PNG o WEBP · máx. 5 MB · puedes subir varias
-            </p>
-          </div>
-          <Input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="max-w-xs"
-            multiple
-            onChange={(e) => {
-              if (producto) void onUploadExisting(e.target.files);
-              else addPendingFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-foreground"
+        >
+          <ImagePlus className="h-6 w-6" />
+          Agregar fotos
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (producto) void onUploadExisting(e.target.files);
+            else addPendingFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
 
         {!producto && pendingFiles.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {pendingFiles.map((item, idx) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {pendingFiles.map((item) => (
               <div
                 key={item.id}
-                className="relative overflow-hidden rounded-md border"
+                className="group relative overflow-hidden rounded-lg border"
               >
-                <div className="relative aspect-square">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-1 p-1">
-                  <span className="truncate px-1 text-[10px] text-muted-foreground">
-                    {idx === 0 ? "Principal" : `Foto ${idx + 1}`}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => removePending(item.id)}
-                  >
-                    ×
-                  </Button>
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.url}
+                  alt=""
+                  className="aspect-square w-full object-cover"
+                />
+                <button
+                  type="button"
+                  className="absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1 text-white"
+                  onClick={() => removePending(item.id)}
+                  aria-label="Quitar"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
             ))}
           </div>
         )}
 
-        {producto && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {producto && imgs.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {imgs.map((img, idx) => (
               <div
                 key={img.id}
-                className="relative overflow-hidden rounded-md border"
+                className="overflow-hidden rounded-lg border bg-muted/20"
               >
-                <div className="relative aspect-square bg-muted">
+                <div className="relative aspect-square">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.url}
@@ -384,51 +301,59 @@ export function ProductoForm({
                       (e.target as HTMLImageElement).style.display = "none";
                     }}
                   />
-                </div>
-                <div className="space-y-1 p-1">
-                  <div className="flex flex-wrap gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={img.es_principal ? "default" : "outline"}
-                      className="flex-1 text-xs"
-                      disabled={pending}
-                      onClick={() =>
-                        startTransition(async () => {
-                          await setImagenPrincipal(img.id);
-                          setImgs((prev) =>
-                            prev.map((i) => ({
-                              ...i,
-                              es_principal: i.id === img.id,
-                            }))
-                          );
-                          router.refresh();
-                        })
-                      }
-                    >
+                  {img.es_principal && (
+                    <span className="absolute left-1.5 top-1.5 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
                       Principal
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={idx === 0 || pending}
-                      onClick={() => moveImage(idx, -1)}
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={idx === imgs.length - 1 || pending}
-                      onClick={() => moveImage(idx, 1)}
-                    >
-                      ↓
-                    </Button>
-                  </div>
-                  <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed px-2 py-1.5 text-xs hover:bg-muted">
-                    Cambiar foto
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-0.5 p-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={pending || img.es_principal}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await setImagenPrincipal(img.id);
+                        setImgs((prev) =>
+                          prev.map((i) => ({
+                            ...i,
+                            es_principal: i.id === img.id,
+                          }))
+                        );
+                        router.refresh();
+                      })
+                    }
+                    aria-label="Principal"
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={idx === 0 || pending}
+                    onClick={() => moveImage(idx, -1)}
+                    aria-label="Subir"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={idx === imgs.length - 1 || pending}
+                    onClick={() => moveImage(idx, 1)}
+                    aria-label="Bajar"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <label className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md hover:bg-muted">
+                    <Replace className="h-3.5 w-3.5" />
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -464,9 +389,9 @@ export function ProductoForm({
                   </label>
                   <Button
                     type="button"
-                    size="sm"
-                    variant="destructive"
-                    className="w-full text-xs"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive"
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
@@ -481,50 +406,151 @@ export function ProductoForm({
                         router.refresh();
                       })
                     }
+                    aria-label="Eliminar"
                   >
-                    Eliminar foto
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             ))}
-            {imgs.length === 0 && (
-              <p className="col-span-full text-sm text-muted-foreground">
-                Aún no hay fotos. Usa el selector de arriba para agregar.
-              </p>
-            )}
           </div>
         )}
-      </div>
+      </section>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* Datos */}
+      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
+        <h2 className="text-sm font-semibold">Producto</h2>
 
-      <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={pending}>
-          {producto ? "Guardar cambios" : "Crear producto"}
+        <div className="space-y-2">
+          <Label htmlFor="nombre">Nombre</Label>
+          <Input id="nombre" {...register("nombre")} autoFocus={!producto} />
+          {errors.nombre && (
+            <p className="text-sm text-destructive">{errors.nombre.message}</p>
+          )}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="precio">Precio (L)</Label>
+            <Input
+              id="precio"
+              type="number"
+              step="0.01"
+              min={0}
+              {...register("precio")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="stock">Stock</Label>
+            <Input id="stock" type="number" min={0} {...register("stock")} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Categoría</Label>
+            <Select
+              value={categoriaId}
+              onValueChange={(v) => {
+                setValue("categoria_id", v);
+                setValue("subcategoria_id", null);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Elegir" />
+              </SelectTrigger>
+              <SelectContent>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Subcategoría</Label>
+            <Select
+              value={watch("subcategoria_id") || "none"}
+              onValueChange={(v) =>
+                setValue("subcategoria_id", v === "none" ? null : v)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Opcional" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ninguna</SelectItem>
+                {subs.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="descripcion">Descripción</Label>
+          <Textarea id="descripcion" rows={3} {...register("descripcion")} />
+        </div>
+
+        <div className="flex flex-wrap gap-6 border-t pt-4">
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={watch("disponible")}
+              onCheckedChange={(v) => setValue("disponible", v)}
+            />
+            Disponible
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <Switch
+              checked={watch("activo")}
+              onCheckedChange={(v) => setValue("activo", v)}
+            />
+            Activo
+          </label>
+        </div>
+      </section>
+
+      {error && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={pending} className="min-w-[120px]">
+          {producto ? "Guardar" : "Crear"}
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           onClick={() => router.push(`${adminPath}/productos`)}
         >
-          Volver
+          Cancelar
         </Button>
         {producto && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive">
+              <Button
+                type="button"
+                variant="ghost"
+                className="ml-auto text-destructive"
+              >
                 Eliminar
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+                <AlertDialogTitle>¿Eliminar?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Se eliminará &quot;{producto.nombre}&quot; y sus imágenes.
+                  {producto.nombre}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>No</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() =>
                     startTransition(async () => {
@@ -537,7 +563,7 @@ export function ProductoForm({
                     })
                   }
                 >
-                  Eliminar
+                  Sí
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

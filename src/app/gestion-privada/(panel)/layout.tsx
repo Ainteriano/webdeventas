@@ -16,7 +16,7 @@ export default async function PanelLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen flex-col bg-muted/30 md:flex-row">
       <AdminNav adminPath={adminPath} />
       <main className="flex-1 overflow-x-hidden p-4 md:p-8">{children}</main>
       <OrderAlerts adminPath={adminPath} />

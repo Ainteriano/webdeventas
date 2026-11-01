@@ -3,11 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatPrice } from "@/lib/format";
+import { Pencil, Trash2, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -34,43 +34,80 @@ import {
   toggleMasivo,
   toggleProducto,
 } from "./actions";
-import type { Categoria, Producto, Subcategoria } from "@/types/database";
+import type { Categoria, Producto, ProductoImagen, Subcategoria } from "@/types/database";
+
+type TriFilter = "all" | "yes" | "no";
+
+function ChipGroup({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="inline-flex rounded-lg border bg-card p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+            value === opt.value
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function mainImage(p: Producto): string | null {
+  const imgs = (p.producto_imagenes || []) as ProductoImagen[];
+  if (!imgs.length) return null;
+  const principal = imgs.find((i) => i.es_principal);
+  return (principal || imgs[0])?.url || null;
+}
 
 export function ProductosTabla({
   productos,
   categorias,
   subcategorias,
   adminPath,
-  initialStockFilter = "all",
 }: {
   productos: Producto[];
   categorias: Categoria[];
   subcategorias: Subcategoria[];
   adminPath: string;
-  initialStockFilter?: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [catFilter, setCatFilter] = useState("all");
-  const [stockFilter, setStockFilter] = useState(initialStockFilter);
+  const [activoFilter, setActivoFilter] = useState<TriFilter>("all");
+  const [dispFilter, setDispFilter] = useState<TriFilter>("all");
   const [catMove, setCatMove] = useState("");
   const [subMove, setSubMove] = useState("");
   const [pending, startTransition] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
     return productos.filter((p) => {
-      if (q && !p.nombre.toLowerCase().includes(q.trim().toLowerCase())) {
-        return false;
-      }
+      if (term && !p.nombre.toLowerCase().includes(term)) return false;
       if (catFilter !== "all" && p.categoria_id !== catFilter) return false;
-      if (stockFilter === "0" && p.stock > 0) return false;
-      if (stockFilter === "low" && p.stock > 5) return false;
-      if (stockFilter === "ok" && p.stock <= 0) return false;
+      if (activoFilter === "yes" && !p.activo) return false;
+      if (activoFilter === "no" && p.activo) return false;
+      if (dispFilter === "yes" && !p.disponible) return false;
+      if (dispFilter === "no" && p.disponible) return false;
       return true;
     });
-  }, [productos, q, catFilter, stockFilter]);
+  }, [productos, q, catFilter, activoFilter, dispFilter]);
 
   const subsForCat = subcategorias.filter((s) => s.categoria_id === catMove);
   const allSelected =
@@ -90,12 +127,11 @@ export function ProductosTabla({
     const n = Number(value);
     if (Number.isNaN(n) || n < 0) return;
     startTransition(async () => {
-      const res = await edicionRapidaProducto({
+      await edicionRapidaProducto({
         id,
         [field]: field === "stock" ? Math.floor(n) : n,
       });
-      setMsg(res.error || "Guardado");
-      if (!res.error) router.refresh();
+      router.refresh();
     });
   }
 
@@ -107,7 +143,6 @@ export function ProductosTabla({
         categoria_id: catMove,
         subcategoria_id: subMove || null,
       });
-      setMsg(res.error || `Movidos ${selected.length} productos`);
       if (!res.error) {
         setSelected([]);
         router.refresh();
@@ -117,42 +152,67 @@ export function ProductosTabla({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <Input
-          placeholder="Buscar producto…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="lg:max-w-xs"
-        />
-        <Select value={catFilter} onValueChange={setCatFilter}>
-          <SelectTrigger className="lg:w-48">
-            <SelectValue placeholder="Categoría" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {categorias.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={stockFilter} onValueChange={setStockFilter}>
-          <SelectTrigger className="lg:w-40">
-            <SelectValue placeholder="Stock" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todo stock</SelectItem>
-            <SelectItem value="0">Sin stock</SelectItem>
-            <SelectItem value="low">≤ 5</SelectItem>
-            <SelectItem value="ok">Con stock</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:p-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={catFilter} onValueChange={setCatFilter}>
+            <SelectTrigger className="h-9 w-auto min-w-[140px]">
+              <SelectValue placeholder="Categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {categorias.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Activo</span>
+            <ChipGroup
+              value={activoFilter}
+              onChange={(v) => setActivoFilter(v as TriFilter)}
+              options={[
+                { value: "all", label: "Todos" },
+                { value: "yes", label: "Sí" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Disponible</span>
+            <ChipGroup
+              value={dispFilter}
+              onChange={(v) => setDispFilter(v as TriFilter)}
+              options={[
+                { value: "all", label: "Todos" },
+                { value: "yes", label: "Sí" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </div>
+
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filtered.length} de {productos.length}
+          </span>
+        </div>
       </div>
 
       {selected.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <p className="text-sm font-medium">{selected.length} seleccionados</p>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+          <span className="text-sm font-medium">{selected.length}</span>
           <Select
             value={catMove}
             onValueChange={(v) => {
@@ -160,8 +220,8 @@ export function ProductosTabla({
               setSubMove("");
             }}
           >
-            <SelectTrigger className="sm:w-48">
-              <SelectValue placeholder="Mover a categoría" />
+            <SelectTrigger className="h-8 w-40">
+              <SelectValue placeholder="Categoría" />
             </SelectTrigger>
             <SelectContent>
               {categorias.map((c) => (
@@ -176,11 +236,11 @@ export function ProductosTabla({
             onValueChange={(v) => setSubMove(v === "__none__" ? "" : v)}
             disabled={!catMove}
           >
-            <SelectTrigger className="sm:w-48">
+            <SelectTrigger className="h-8 w-40">
               <SelectValue placeholder="Subcategoría" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Sin subcategoría</SelectItem>
+              <SelectItem value="__none__">—</SelectItem>
               {subsForCat.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.nombre}
@@ -191,6 +251,7 @@ export function ProductosTabla({
           <Button
             type="button"
             size="sm"
+            variant="secondary"
             disabled={pending || !catMove}
             onClick={onMover}
           >
@@ -208,7 +269,21 @@ export function ProductosTabla({
               })
             }
           >
-            Disponibles
+            Disponible
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await toggleMasivo(selected, "activo", true);
+                router.refresh();
+              })
+            }
+          >
+            Activar
           </Button>
           <Button
             type="button"
@@ -222,209 +297,73 @@ export function ProductosTabla({
               })
             }
           >
-            Desactivar
+            Ocultar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelected([])}
+          >
+            ×
           </Button>
         </div>
       )}
 
-      {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
-
-      {/* Mobile */}
-      <div className="space-y-3 md:hidden">
-        {filtered.map((p) => (
-          <div key={p.id} className="space-y-3 rounded-lg border bg-card p-3">
-            <div className="flex items-start gap-2">
+      {/* Mobile cards */}
+      <div className="space-y-2 md:hidden">
+        {filtered.map((p) => {
+          const img = mainImage(p);
+          return (
+            <div
+              key={p.id}
+              className="flex gap-3 rounded-xl border bg-card p-3"
+            >
               <Checkbox
                 checked={selected.includes(p.id)}
                 onCheckedChange={() => toggleSelect(p.id)}
+                className="mt-1"
               />
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`${adminPath}/productos/${p.id}`}
-                  className="font-medium hover:underline"
-                >
-                  {p.nombre}
-                </Link>
-                <p className="text-xs text-muted-foreground">
-                  {p.categorias?.nombre || "—"}
-                </p>
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+                {img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt="" className="h-full w-full object-cover" />
+                ) : null}
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-xs text-muted-foreground">Precio</p>
-                <Input
-                  type="number"
-                  step="0.01"
-                  defaultValue={p.precio}
-                  onBlur={(e) => saveRapido(p.id, "precio", e.target.value)}
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Stock</p>
-                <Input
-                  type="number"
-                  defaultValue={p.stock}
-                  onBlur={(e) => saveRapido(p.id, "stock", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span title="Visible en sitio, sin compra si está apagado">
-                  Disponible compra
-                </span>
-                <Switch
-                  checked={p.disponible}
-                  disabled={pending}
-                  onCheckedChange={(v) =>
-                    startTransition(async () => {
-                      await toggleProducto(p.id, "disponible", v);
-                      router.refresh();
-                    })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span title="Oculta del sitio si está apagado">En sitio</span>
-                <Badge variant={p.activo ? "success" : "secondary"}>
-                  {p.activo ? "Visible" : "Oculto"}
-                </Badge>
-                <Switch
-                  checked={p.activo}
-                  disabled={pending}
-                  onCheckedChange={(v) =>
-                    startTransition(async () => {
-                      await toggleProducto(p.id, "activo", v);
-                      router.refresh();
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-        {filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground">Sin resultados.</p>
-        )}
-      </div>
-
-      {/* Desktop */}
-      <div className="hidden overflow-x-auto rounded-lg border md:block">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b bg-muted/50">
-            <tr>
-              <th className="w-10 p-3">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={(c) => toggleAll(!!c)}
-                />
-              </th>
-              <th className="p-3">Producto</th>
-              <th className="p-3">Categoría</th>
-              <th className="p-3">Precio</th>
-              <th className="p-3">Stock</th>
-              <th
-                className="p-3"
-                title="Sigue visible en el sitio, sin precio y en gris"
-              >
-                Compra
-              </th>
-              <th
-                className="p-3"
-                title="Si está apagado, se oculta del sitio (no se borra)"
-              >
-                En sitio
-              </th>
-              <th className="p-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => (
-              <tr key={p.id} className="border-b align-middle">
-                <td className="p-3">
-                  <Checkbox
-                    checked={selected.includes(p.id)}
-                    onCheckedChange={() => toggleSelect(p.id)}
-                  />
-                </td>
-                <td className="p-3">
-                  <Link
-                    href={`${adminPath}/productos/${p.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {p.nombre}
-                  </Link>
-                </td>
-                <td className="p-3 text-muted-foreground">
-                  {p.categorias?.nombre || "—"}
-                </td>
-                <td className="p-3">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    defaultValue={p.precio}
-                    className="h-8 w-28"
-                    title={formatPrice(p.precio)}
-                    onBlur={(e) => saveRapido(p.id, "precio", e.target.value)}
-                  />
-                </td>
-                <td className="p-3">
-                  <Input
-                    type="number"
-                    defaultValue={p.stock}
-                    className="h-8 w-20"
-                    onBlur={(e) => saveRapido(p.id, "stock", e.target.value)}
-                  />
-                </td>
-                <td className="p-3">
-                  <Switch
-                    checked={p.disponible}
-                    disabled={pending}
-                    onCheckedChange={(v) =>
-                      startTransition(async () => {
-                        await toggleProducto(p.id, "disponible", v);
-                        router.refresh();
-                      })
-                    }
-                  />
-                </td>
-                <td className="p-3">
-                  <Switch
-                    checked={p.activo}
-                    disabled={pending}
-                    onCheckedChange={(v) =>
-                      startTransition(async () => {
-                        await toggleProducto(p.id, "activo", v);
-                        router.refresh();
-                      })
-                    }
-                  />
-                </td>
-                <td className="p-3">
-                  <div className="flex flex-wrap gap-1">
-                    <Button asChild size="sm" variant="ghost">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link
+                      href={`${adminPath}/productos/${p.id}`}
+                      className="block truncate font-medium"
+                    >
+                      {p.nombre}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">
+                      {p.categorias?.nombre || "—"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-0.5">
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
                       <Link href={`${adminPath}/productos/${p.id}`}>
-                        Editar
+                        <Pencil className="h-3.5 w-3.5" />
                       </Link>
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="destructive">
-                          Eliminar
+                        <Button size="icon" variant="ghost" className="h-8 w-8">
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            ¿Eliminar producto?
-                          </AlertDialogTitle>
+                          <AlertDialogTitle>¿Eliminar?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Se eliminará &quot;{p.nombre}&quot; y sus imágenes.
+                            {p.nombre}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogCancel>No</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() =>
                               startTransition(async () => {
@@ -433,22 +372,219 @@ export function ProductosTabla({
                               })
                             }
                           >
-                            Eliminar
+                            Sí
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
-                </td>
-              </tr>
-            ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    defaultValue={p.precio}
+                    className="h-8"
+                    aria-label="Precio"
+                    onBlur={(e) => saveRapido(p.id, "precio", e.target.value)}
+                  />
+                  <Input
+                    type="number"
+                    defaultValue={p.stock}
+                    className="h-8"
+                    aria-label="Stock"
+                    onBlur={(e) => saveRapido(p.id, "stock", e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 text-xs">
+                  <label className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Disp.</span>
+                    <Switch
+                      checked={p.disponible}
+                      disabled={pending}
+                      onCheckedChange={(v) =>
+                        startTransition(async () => {
+                          await toggleProducto(p.id, "disponible", v);
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Activo</span>
+                    <Switch
+                      checked={p.activo}
+                      disabled={pending}
+                      onCheckedChange={(v) =>
+                        startTransition(async () => {
+                          await toggleProducto(p.id, "activo", v);
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            Sin resultados
+          </p>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="w-10 p-3">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={(c) => toggleAll(!!c)}
+                />
+              </th>
+              <th className="p-3 font-medium">Producto</th>
+              <th className="p-3 font-medium">Categoría</th>
+              <th className="p-3 font-medium">Precio</th>
+              <th className="p-3 font-medium">Stock</th>
+              <th className="p-3 font-medium">Disp.</th>
+              <th className="p-3 font-medium">Activo</th>
+              <th className="w-24 p-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p) => {
+              const img = mainImage(p);
+              return (
+                <tr
+                  key={p.id}
+                  className="border-b last:border-0 hover:bg-muted/30"
+                >
+                  <td className="p-3">
+                    <Checkbox
+                      checked={selected.includes(p.id)}
+                      onCheckedChange={() => toggleSelect(p.id)}
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Link
+                      href={`${adminPath}/productos/${p.id}`}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
+                        {img ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={img}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <span className="font-medium hover:underline">
+                        {p.nombre}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="p-3 text-muted-foreground">
+                    <div>{p.categorias?.nombre || "—"}</div>
+                    {p.subcategorias?.nombre && (
+                      <div className="text-xs">{p.subcategorias.nombre}</div>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      defaultValue={p.precio}
+                      className="h-8 w-28"
+                      onBlur={(e) =>
+                        saveRapido(p.id, "precio", e.target.value)
+                      }
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Input
+                      type="number"
+                      defaultValue={p.stock}
+                      className="h-8 w-20"
+                      onBlur={(e) => saveRapido(p.id, "stock", e.target.value)}
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Switch
+                      checked={p.disponible}
+                      disabled={pending}
+                      onCheckedChange={(v) =>
+                        startTransition(async () => {
+                          await toggleProducto(p.id, "disponible", v);
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="p-3">
+                    <Switch
+                      checked={p.activo}
+                      disabled={pending}
+                      onCheckedChange={(v) =>
+                        startTransition(async () => {
+                          await toggleProducto(p.id, "activo", v);
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-0.5">
+                      <Button asChild size="icon" variant="ghost" className="h-8 w-8">
+                        <Link href={`${adminPath}/productos/${p.id}`}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {p.nombre}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>No</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                startTransition(async () => {
+                                  await eliminarProducto(p.id);
+                                  router.refresh();
+                                })
+                              }
+                            >
+                              Sí
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
-                  className="p-6 text-center text-muted-foreground"
+                  className="p-10 text-center text-muted-foreground"
                 >
-                  No hay productos con esos filtros.
+                  Sin resultados
                 </td>
               </tr>
             )}

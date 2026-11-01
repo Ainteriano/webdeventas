@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Trash2,
+  Check,
+  X,
+} from "lucide-react";
 import type { Categoria, Subcategoria } from "@/types/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,10 +45,15 @@ export function CategoriasManager({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(categorias.map((c) => [c.id, true]))
+  );
   const [editingCat, setEditingCat] = useState<string | null>(null);
   const [editingSub, setEditingSub] = useState<string | null>(null);
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+  const [newCat, setNewCat] = useState("");
+  const [newSub, setNewSub] = useState("");
+  const [editName, setEditName] = useState("");
 
   function run(action: () => Promise<{ error?: string; ok?: boolean }>) {
     setError(null);
@@ -53,62 +64,103 @@ export function CategoriasManager({
         setEditingCat(null);
         setEditingSub(null);
         setAddingSubFor(null);
+        setNewCat("");
+        setNewSub("");
+        setEditName("");
       }
     });
   }
 
+  function addCategoria() {
+    const nombre = newCat.trim();
+    if (!nombre) return;
+    const fd = new FormData();
+    fd.set("nombre", nombre);
+    fd.set("orden", String(categorias.length));
+    fd.set("activa", "true");
+    run(() => crearCategoria(fd));
+  }
+
+  function addSub(categoriaId: string) {
+    const nombre = newSub.trim();
+    if (!nombre) return;
+    const fd = new FormData();
+    fd.set("categoria_id", categoriaId);
+    fd.set("nombre", nombre);
+    fd.set("orden", "0");
+    run(() => crearSubcategoria(fd));
+  }
+
+  function saveCat(cat: Categoria) {
+    const nombre = editName.trim();
+    if (!nombre) return;
+    const fd = new FormData();
+    fd.set("id", cat.id);
+    fd.set("nombre", nombre);
+    fd.set("slug", cat.slug);
+    fd.set("orden", String(cat.orden));
+    fd.set("activa", cat.activa ? "true" : "false");
+    run(() => actualizarCategoria(fd));
+  }
+
+  function saveSub(sub: Subcategoria, categoriaId: string) {
+    const nombre = editName.trim();
+    if (!nombre) return;
+    const fd = new FormData();
+    fd.set("id", sub.id);
+    fd.set("categoria_id", categoriaId);
+    fd.set("nombre", nombre);
+    fd.set("slug", sub.slug);
+    fd.set("orden", String(sub.orden));
+    fd.set("activa", sub.activa ? "true" : "false");
+    run(() => actualizarSubcategoria(fd));
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <form
-        className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          run(() => crearCategoria(fd));
-          e.currentTarget.reset();
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="nueva-cat">Nueva categoría</Label>
-          <Input id="nueva-cat" name="nombre" required placeholder="Nombre" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="orden-cat">Orden</Label>
-          <Input
-            id="orden-cat"
-            name="orden"
-            type="number"
-            min={0}
-            defaultValue={0}
-            className="w-24"
-          />
-        </div>
-        <input type="hidden" name="activa" value="true" />
-        <Button type="submit" disabled={pending}>
+      <div className="flex gap-2 rounded-xl border bg-card p-2">
+        <Input
+          value={newCat}
+          onChange={(e) => setNewCat(e.target.value)}
+          placeholder="Nueva categoría"
+          className="border-0 shadow-none focus-visible:ring-0"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCategoria();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          size="icon"
+          disabled={pending || !newCat.trim()}
+          onClick={addCategoria}
+          aria-label="Agregar"
+        >
           <Plus className="h-4 w-4" />
-          Agregar
         </Button>
-      </form>
+      </div>
 
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {categorias.map((cat) => {
           const open = expanded[cat.id] ?? true;
           return (
-            <li key={cat.id} className="rounded-lg border bg-card">
-              <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3">
+            <li key={cat.id} className="overflow-hidden rounded-xl border bg-card">
+              <div className="flex items-center gap-1 px-2 py-2 sm:gap-2 sm:px-3">
                 <button
                   type="button"
-                  className="rounded p-1 hover:bg-muted"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() =>
                     setExpanded((s) => ({ ...s, [cat.id]: !open }))
                   }
-                  aria-label={open ? "Colapsar" : "Expandir"}
+                  aria-label={open ? "Cerrar" : "Abrir"}
                 >
                   {open ? (
                     <ChevronDown className="h-4 w-4" />
@@ -118,60 +170,54 @@ export function CategoriasManager({
                 </button>
 
                 {editingCat === cat.id ? (
-                  <form
-                    className="flex flex-1 flex-wrap items-end gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const fd = new FormData(e.currentTarget);
-                      run(() => actualizarCategoria(fd));
-                    }}
-                  >
-                    <input type="hidden" name="id" value={cat.id} />
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
                     <Input
-                      name="nombre"
-                      defaultValue={cat.nombre}
-                      required
-                      className="min-w-[140px] flex-1"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="h-8"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          saveCat(cat);
+                        }
+                        if (e.key === "Escape") setEditingCat(null);
+                      }}
                     />
-                    <Input
-                      name="slug"
-                      defaultValue={cat.slug}
-                      className="w-36"
-                    />
-                    <Input
-                      name="orden"
-                      type="number"
-                      defaultValue={cat.orden}
-                      className="w-20"
-                    />
-                    <input
-                      type="hidden"
-                      name="activa"
-                      value={cat.activa ? "true" : "false"}
-                    />
-                    <Button type="submit" size="sm" disabled={pending}>
-                      Guardar
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={pending}
+                      onClick={() => saveCat(cat)}
+                    >
+                      <Check className="h-4 w-4" />
                     </Button>
                     <Button
                       type="button"
-                      size="sm"
+                      size="icon"
                       variant="ghost"
+                      className="h-8 w-8"
                       onClick={() => setEditingCat(null)}
                     >
-                      Cancelar
+                      <X className="h-4 w-4" />
                     </Button>
-                  </form>
+                  </div>
                 ) : (
                   <>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{cat.nombre}</p>
-                      <p className="text-xs text-muted-foreground">
-                        /{cat.slug} · orden {cat.orden}
-                      </p>
-                    </div>
-                    <Badge variant={cat.activa ? "success" : "secondary"}>
-                      {cat.activa ? "Activa" : "Inactiva"}
-                    </Badge>
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 truncate text-left font-medium"
+                      onClick={() =>
+                        setExpanded((s) => ({ ...s, [cat.id]: !open }))
+                      }
+                    >
+                      {cat.nombre}
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        {cat.subcategorias.length}
+                      </span>
+                    </button>
                     <Switch
                       checked={cat.activa}
                       disabled={pending}
@@ -183,195 +229,205 @@ export function CategoriasManager({
                       type="button"
                       size="icon"
                       variant="ghost"
-                      onClick={() => setEditingCat(cat.id)}
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setAddingSubFor(cat.id);
+                        setNewSub("");
+                        setExpanded((s) => ({ ...s, [cat.id]: true }));
+                      }}
+                      aria-label="Subcategoría"
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditingCat(cat.id);
+                        setEditName(cat.nombre);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button type="button" size="icon" variant="ghost">
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>¿Eliminar categoría?</AlertDialogTitle>
+                          <AlertDialogTitle>¿Eliminar?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Se eliminará &quot;{cat.nombre}&quot; y sus
-                            subcategorías. No debe tener productos asociados.
+                            {cat.nombre}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogCancel>No</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() =>
                               run(() => eliminarCategoria(cat.id))
                             }
                           >
-                            Eliminar
+                            Sí
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAddingSubFor(cat.id)}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Sub
-                    </Button>
                   </>
                 )}
               </div>
 
               {open && (
-                <div className="space-y-2 border-t bg-muted/30 p-3">
+                <div className="space-y-1 border-t bg-muted/25 px-2 py-2 sm:px-3">
                   {addingSubFor === cat.id && (
-                    <form
-                      className="mb-2 grid gap-2 rounded-md border bg-background p-3 sm:grid-cols-[1fr_auto_auto]"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const fd = new FormData(e.currentTarget);
-                        run(() => crearSubcategoria(fd));
-                      }}
-                    >
-                      <input type="hidden" name="categoria_id" value={cat.id} />
-                      <Input name="nombre" required placeholder="Subcategoría" />
+                    <div className="mb-1 flex gap-1 rounded-lg border bg-background p-1">
                       <Input
-                        name="orden"
-                        type="number"
-                        defaultValue={0}
-                        className="w-24"
+                        value={newSub}
+                        onChange={(e) => setNewSub(e.target.value)}
+                        placeholder="Subcategoría"
+                        className="h-8 border-0 shadow-none focus-visible:ring-0"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addSub(cat.id);
+                          }
+                          if (e.key === "Escape") setAddingSubFor(null);
+                        }}
                       />
-                      <div className="flex gap-2">
-                        <Button type="submit" size="sm" disabled={pending}>
-                          Guardar
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={pending || !newSub.trim()}
+                        onClick={() => addSub(cat.id)}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => setAddingSubFor(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {cat.subcategorias.length === 0 &&
+                    addingSubFor !== cat.id && (
+                      <p className="px-2 py-2 text-xs text-muted-foreground">
+                        Sin subcategorías
+                      </p>
+                    )}
+
+                  {cat.subcategorias.map((sub) =>
+                    editingSub === sub.id ? (
+                      <div
+                        key={sub.id}
+                        className="flex items-center gap-1 rounded-lg bg-background px-1 py-1"
+                      >
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-8"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              saveSub(sub, cat.id);
+                            }
+                            if (e.key === "Escape") setEditingSub(null);
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          disabled={pending}
+                          onClick={() => saveSub(sub, cat.id)}
+                        >
+                          <Check className="h-4 w-4" />
                         </Button>
                         <Button
                           type="button"
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          onClick={() => setAddingSubFor(null)}
+                          className="h-8 w-8"
+                          onClick={() => setEditingSub(null)}
                         >
-                          Cancelar
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    </form>
-                  )}
-
-                  {cat.subcategorias.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Sin subcategorías
-                    </p>
-                  ) : (
-                    cat.subcategorias.map((sub) =>
-                      editingSub === sub.id ? (
-                        <form
-                          key={sub.id}
-                          className="flex flex-wrap items-end gap-2 rounded-md border bg-background p-2"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            const fd = new FormData(e.currentTarget);
-                            run(() => actualizarSubcategoria(fd));
+                    ) : (
+                      <div
+                        key={sub.id}
+                        className="flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-background/80"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {sub.nombre}
+                        </span>
+                        <Switch
+                          checked={sub.activa}
+                          disabled={pending}
+                          onCheckedChange={(v) =>
+                            run(() => toggleSubcategoriaActiva(sub.id, v))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setEditingSub(sub.id);
+                            setEditName(sub.nombre);
                           }}
                         >
-                          <input type="hidden" name="id" value={sub.id} />
-                          <input
-                            type="hidden"
-                            name="categoria_id"
-                            value={cat.id}
-                          />
-                          <Input
-                            name="nombre"
-                            defaultValue={sub.nombre}
-                            required
-                            className="min-w-[120px] flex-1"
-                          />
-                          <Input
-                            name="slug"
-                            defaultValue={sub.slug}
-                            className="w-32"
-                          />
-                          <Input
-                            name="orden"
-                            type="number"
-                            defaultValue={sub.orden}
-                            className="w-20"
-                          />
-                          <input
-                            type="hidden"
-                            name="activa"
-                            value={sub.activa ? "true" : "false"}
-                          />
-                          <Button type="submit" size="sm" disabled={pending}>
-                            Guardar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingSub(null)}
-                          >
-                            Cancelar
-                          </Button>
-                        </form>
-                      ) : (
-                        <div
-                          key={sub.id}
-                          className="flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">{sub.nombre}</p>
-                            <p className="text-xs text-muted-foreground">
-                              /{sub.slug}
-                            </p>
-                          </div>
-                          <Switch
-                            checked={sub.activa}
-                            disabled={pending}
-                            onCheckedChange={(v) =>
-                              run(() => toggleSubcategoriaActiva(sub.id, v))
-                            }
-                          />
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setEditingSub(sub.id)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button type="button" size="icon" variant="ghost">
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  ¿Eliminar subcategoría?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Se eliminará &quot;{sub.nombre}&quot;.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() =>
-                                    run(() => eliminarSubcategoria(sub.id))
-                                  }
-                                >
-                                  Eliminar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      )
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                            >
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Eliminar?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {sub.nombre}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>No</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  run(() => eliminarSubcategoria(sub.id))
+                                }
+                              >
+                                Sí
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     )
                   )}
                 </div>
