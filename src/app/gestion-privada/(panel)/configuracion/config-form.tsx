@@ -30,7 +30,7 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-2xl space-y-5">
+    <form onSubmit={onSubmit} className="space-y-5">
       {error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -38,30 +38,9 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
       )}
       {ok && (
         <p className="rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-800">
-          Configuración guardada.
+          Guardado
         </p>
       )}
-
-      <div className="space-y-2">
-        <Label htmlFor="nombre_negocio">Nombre del negocio</Label>
-        <Input
-          id="nombre_negocio"
-          name="nombre_negocio"
-          required
-          defaultValue={config.nombre_negocio}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="logo_url">URL del logo</Label>
-        <Input
-          id="logo_url"
-          name="logo_url"
-          type="url"
-          placeholder="https://…"
-          defaultValue={config.logo_url || ""}
-        />
-      </div>
 
       <div className="space-y-2">
         <Label htmlFor="whatsapp">WhatsApp</Label>
@@ -75,7 +54,7 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="mensaje_whatsapp">Mensaje predeterminado WhatsApp</Label>
+        <Label htmlFor="mensaje_whatsapp">Mensaje WhatsApp</Label>
         <Textarea
           id="mensaje_whatsapp"
           name="mensaje_whatsapp"
@@ -95,7 +74,7 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="maps_embed_url">URL embed de mapa</Label>
+        <Label htmlFor="maps_embed_url">URL del mapa</Label>
         <Textarea
           id="maps_embed_url"
           name="maps_embed_url"
@@ -115,23 +94,8 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="datos_bancarios">Datos bancarios</Label>
-        <Textarea
-          id="datos_bancarios"
-          name="datos_bancarios"
-          rows={5}
-          defaultValue={config.datos_bancarios}
-        />
-      </div>
-
       <div className="flex items-center justify-between rounded-md border px-3 py-3">
-        <div>
-          <Label htmlFor="link_pago">Link de pago activo</Label>
-          <p className="text-xs text-muted-foreground">
-            Permite ofrecer método LINK_PAGO en el checkout.
-          </p>
-        </div>
+        <Label htmlFor="link_pago">Link de pago</Label>
         <Switch
           id="link_pago"
           checked={linkPago}
@@ -140,7 +104,7 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
       </div>
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Guardando…" : "Guardar configuración"}
+        {pending ? "Guardando…" : "Guardar"}
       </Button>
     </form>
   );
