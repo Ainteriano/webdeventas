@@ -100,14 +100,14 @@ export function ComprobanteUpload({
           <span className="text-xs">Solo fotos · JPG o PNG · máx. 5 MB</span>
         </button>
         {/*
-          Solo image/* (sin PDF ni capture):
-          iOS → Fotos/Galería
-          Android → suele priorizar Galería / Fotos
+          MIME/extensiones de foto (sin PDF ni capture):
+          iOS → Fotos
+          Android → Galería / Fotos (no Docs ni cámara forzada)
         */}
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
           className="hidden"
           onChange={(e) => {
             onPick(e.target.files);
