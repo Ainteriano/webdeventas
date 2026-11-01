@@ -9,6 +9,10 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { notifyCambioEstado } from "@/lib/email";
 import type { EstadoPedido, Pedido } from "@/types/database";
 
+/**
+ * Completar compra = subir comprobante.
+ * Aquí se reserva el stock (FOR UPDATE). Iniciar el pedido NO reserva.
+ */
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
@@ -63,24 +67,20 @@ export async function POST(
     );
   }
 
-  // Legacy: si el pedido no reservó al crearse, reservar ahora
-  const yaReservado = !!pedido.stock_reservado;
-  if (!yaReservado) {
-    const { error: reserveErr } = await admin.rpc("reservar_stock_pedido", {
-      p_pedido_id: pedidoId,
-    });
+  // Reservar stock SOLO al completar (subir comprobante). Atómico con FOR UPDATE.
+  const { error: reserveErr } = await admin.rpc("reservar_stock_pedido", {
+    p_pedido_id: pedidoId,
+  });
 
-    if (reserveErr) {
-      console.error(reserveErr);
-      return NextResponse.json(
-        {
-          error:
-            reserveErr.message ||
-            "No hay stock suficiente. Otro cliente pudo reservar este producto.",
-        },
-        { status: 409 }
-      );
-    }
+  if (reserveErr) {
+    console.error(reserveErr);
+    return NextResponse.json(
+      {
+        error:
+          "No hay stock suficiente. Otro cliente completó la compra de este producto primero.",
+      },
+      { status: 409 }
+    );
   }
 
   const ext =
@@ -100,10 +100,7 @@ export async function POST(
     });
 
   if (upErr) {
-    // Solo liberar si acabamos de reservar en este request (pedido legacy)
-    if (!yaReservado) {
-      await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
-    }
+    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
     console.error(upErr);
     return NextResponse.json(
       { error: "No se pudo subir el comprobante" },
@@ -125,15 +122,14 @@ export async function POST(
     .single();
 
   if (updErr || !updated) {
-    if (!yaReservado) {
-      await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
-    }
+    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
     return NextResponse.json(
       { error: "No se pudo actualizar el pedido" },
       { status: 500 }
     );
   }
 
+  // Catálogo: producto pasa a No disponible si stock llegó a 0
   revalidatePath("/");
   revalidatePath("/catalogo");
 

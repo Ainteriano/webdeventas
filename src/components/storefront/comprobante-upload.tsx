@@ -82,7 +82,7 @@ export function ComprobanteUpload({
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading || !file} className="w-full">
         <Upload className="h-4 w-4" />
-        {loading ? "Subiendo…" : "Siguiente"}
+        {loading ? "Completando compra…" : "Siguiente"}
       </Button>
     </form>
   );
