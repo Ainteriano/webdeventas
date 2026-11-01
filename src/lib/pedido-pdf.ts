@@ -28,7 +28,7 @@ export type PedidoPdfData = {
   };
 };
 
-export function descargarPedidoPdf(data: PedidoPdfData) {
+function buildDoc(data: PedidoPdfData) {
   const doc = new jsPDF();
   const margen = 18;
   let y = 20;
@@ -69,7 +69,7 @@ export function descargarPedidoPdf(data: PedidoPdfData) {
   doc.setFontSize(14);
   doc.text("Comprobante de pedido", margen, y);
   y += 8;
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.text(`Seguimiento: ${data.codigo}`, margen, y);
   y += 6;
   doc.setFont("helvetica", "normal");
@@ -85,11 +85,11 @@ export function descargarPedidoPdf(data: PedidoPdfData) {
     `Nombre: ${data.nombre}`,
     `Teléfono: ${data.telefono}`,
     `Correo: ${data.correo}`,
-    `Dirección: ${data.direccion}`,
-    `Banco de transferencia: ${data.banco}`,
+    data.direccion ? `Dirección: ${data.direccion}` : null,
+    `Banco de origen del depósito: ${data.banco}`,
     `Método de pago: ${data.metodo_pago}`,
-  ];
-  if (data.notas) cliente.push(`Notas: ${data.notas}`);
+  ].filter(Boolean) as string[];
+
   for (const line of cliente) {
     const wrapped = doc.splitTextToSize(line, 170);
     doc.text(wrapped, margen, y);
@@ -123,11 +123,33 @@ export function descargarPedidoPdf(data: PedidoPdfData) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(100);
-  doc.text(
-    "Pedido en espera de confirmación. Conserva este PDF y tu código de seguimiento.",
-    margen,
-    y
+  const aviso = doc.splitTextToSize(
+    "No olvides guardar el número de seguimiento, es muy importante. Pedido pendiente de confirmación.",
+    170
   );
+  doc.text(aviso, margen, y);
 
-  doc.save(`pedido-${data.codigo}.pdf`);
+  return doc;
+}
+
+/** Descarga el PDF (mejor soporte móvil con blob + click). */
+export function descargarPedidoPdf(data: PedidoPdfData) {
+  const doc = buildDoc(data);
+  const filename = `pedido-${data.codigo}.pdf`;
+
+  try {
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(() => URL.revokeObjectURL(url), 2500);
+  } catch {
+    doc.save(filename);
+  }
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowRight, CheckCircle2, Download } from "lucide-react";
+import { CheckCircle2, Copy, Download } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { checkoutSchema } from "@/lib/validations";
 import { formatPrice, formatDate } from "@/lib/utils";
@@ -19,8 +19,7 @@ import { descargarPedidoPdf, type PedidoPdfData } from "@/lib/pedido-pdf";
 const checkoutFormSchema = checkoutSchema.omit({ items: true });
 type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
 
-type Step = "form" | "upload" | "thanks" | "summary";
-
+type Step = "form" | "upload" | "summary" | "done";
 type PedidoResumen = PedidoPdfData;
 
 export function CheckoutForm({
@@ -36,6 +35,8 @@ export function CheckoutForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("form");
   const [pedido, setPedido] = useState<PedidoResumen | null>(null);
+  const [copied, setCopied] = useState(false);
+  const pdfAutoDone = useRef(false);
 
   const {
     register,
@@ -57,6 +58,20 @@ export function CheckoutForm({
 
   const metodo = watch("metodo_pago");
 
+  // Auto-descargar PDF al entrar al resumen
+  useEffect(() => {
+    if (step !== "summary" || !pedido || pdfAutoDone.current) return;
+    pdfAutoDone.current = true;
+    const t = window.setTimeout(() => {
+      try {
+        descargarPedidoPdf(pedido);
+      } catch {
+        /* el usuario puede descargar manualmente */
+      }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [step, pedido]);
+
   if (items.length === 0 && step === "form") {
     return (
       <div className="rounded-xl border border-dashed bg-muted/40 px-6 py-16 text-center">
@@ -68,47 +83,55 @@ export function CheckoutForm({
     );
   }
 
-  // Paso: Gracias
-  if (step === "thanks" && pedido) {
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-card px-6 py-14 text-center shadow-sm animate-fade-in">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 animate-slide-up">
-          <CheckCircle2 className="h-12 w-12" />
-        </div>
-        <h2 className="mt-6 font-display text-3xl animate-slide-up">
-          ¡Gracias por su compra!
-        </h2>
-        <p className="mt-3 text-muted-foreground animate-slide-up">
-          Recibimos tu comprobante. Tu pedido quedó en espera de confirmación y
-          la unidad ya está reservada.
-        </p>
-        <Button
-          size="lg"
-          className="mt-8 animate-slide-up"
-          onClick={() => setStep("summary")}
-        >
-          Siguiente <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
-
-  // Paso: Resumen + PDF
+  // Paso: Resumen + PDF (antes de cerrar)
   if (step === "summary" && pedido) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 animate-fade-in">
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <p className="text-sm text-muted-foreground">Código de seguimiento</p>
-          <p className="font-mono text-2xl font-semibold tracking-wide">
+      <div className="mx-auto max-w-2xl space-y-5 animate-fade-in">
+        <div className="rounded-xl border-2 border-amber-400/60 bg-amber-50 px-5 py-4 text-center">
+          <p className="text-base font-semibold text-amber-950">
+            ¡No olvides guardar el número de seguimiento, es muy importante!
+          </p>
+          <p className="mt-3 font-mono text-2xl font-bold tracking-wider text-foreground sm:text-3xl">
             {pedido.codigo}
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {formatDate(pedido.created_at)}
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(pedido.codigo);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 2000);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copied ? "Copiado" : "Copiar código"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => descargarPedidoPdf(pedido)}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar PDF
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-amber-900/80">
+            El PDF se descarga automáticamente. Si no aparece, tócalo arriba.
           </p>
         </div>
 
-        <div className="rounded-xl border bg-card p-6">
+        <div className="rounded-xl border bg-card p-5 sm:p-6">
           <h2 className="font-display text-xl">Resumen del pedido</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatDate(pedido.created_at)}
+          </p>
+
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Cliente</dt>
@@ -123,17 +146,13 @@ export function CheckoutForm({
               <dd>{pedido.correo}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Banco (transferencia)</dt>
+              <dt className="text-muted-foreground">Banco de origen</dt>
               <dd>{pedido.banco}</dd>
             </div>
-            <div className="sm:col-span-2">
-              <dt className="text-muted-foreground">Dirección</dt>
-              <dd className="whitespace-pre-line">{pedido.direccion}</dd>
-            </div>
-            {pedido.notas ? (
+            {pedido.direccion ? (
               <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">Notas</dt>
-                <dd>{pedido.notas}</dd>
+                <dt className="text-muted-foreground">Dirección</dt>
+                <dd className="whitespace-pre-line">{pedido.direccion}</dd>
               </div>
             ) : null}
           </dl>
@@ -154,31 +173,47 @@ export function CheckoutForm({
           </div>
         </div>
 
-        <div className="rounded-xl border bg-muted/30 p-5 text-sm">
-          <p className="font-medium">{pedido.comercio.nombre_negocio}</p>
-          <p className="mt-1 whitespace-pre-line text-muted-foreground">
-            {pedido.comercio.direccion}
-          </p>
-          {pedido.comercio.whatsapp && (
-            <p className="mt-1 text-muted-foreground">
-              WhatsApp: {pedido.comercio.whatsapp}
-            </p>
-          )}
-        </div>
+        <Button
+          type="button"
+          size="lg"
+          className="w-full"
+          onClick={() => setStep("done")}
+        >
+          Completar
+        </Button>
+      </div>
+    );
+  }
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+  // Paso final: compra enviada / pendiente
+  if (step === "done" && pedido) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-card px-6 py-14 text-center shadow-sm animate-fade-in">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <CheckCircle2 className="h-12 w-12" />
+        </div>
+        <h2 className="mt-6 font-display text-3xl">Compra realizada</h2>
+        <p className="mt-3 text-muted-foreground">
+          Tu pedido está pendiente de confirmación. Guarda tu código de
+          seguimiento.
+        </p>
+        <p className="mt-5 font-mono text-xl font-semibold tracking-wide">
+          {pedido.codigo}
+        </p>
+        <div className="mt-8 flex w-full flex-col gap-2">
+          <Button asChild size="lg">
+            <Link href={`/seguimiento/${pedido.codigo}`}>Ver seguimiento</Link>
+          </Button>
           <Button
             type="button"
-            className="flex-1"
+            variant="outline"
             onClick={() => descargarPedidoPdf(pedido)}
           >
             <Download className="h-4 w-4" />
-            Descargar PDF del pedido
+            Descargar PDF otra vez
           </Button>
-          <Button asChild variant="outline" className="flex-1">
-            <Link href={`/seguimiento/${pedido.codigo}`}>
-              Ver seguimiento
-            </Link>
+          <Button asChild variant="ghost">
+            <Link href="/catalogo">Volver al catálogo</Link>
           </Button>
         </div>
       </div>
@@ -196,20 +231,19 @@ export function CheckoutForm({
             <span className="font-mono font-semibold text-foreground">
               {pedido.codigo}
             </span>
-            . Al subir el comprobante se reserva tu unidad para que nadie más la
-            compre mientras confirmamos.
           </p>
         </div>
         {pedido.id ? (
           <ComprobanteUpload
             pedidoId={pedido.id}
             onSuccess={({ pedido: p, comercio: c }) => {
+              pdfAutoDone.current = false;
               setPedido({
                 ...p,
                 id: p.id || pedido.id,
                 comercio: c,
               });
-              setStep("thanks");
+              setStep("summary");
             }}
           />
         ) : (
@@ -223,8 +257,21 @@ export function CheckoutForm({
 
   async function onSubmit(values: CheckoutFormValues) {
     setServerError(null);
+
+    for (const i of items) {
+      const max = Math.max(0, Math.floor(Number(i.stock) || 0));
+      if (i.cantidad > max) {
+        setServerError(
+          `Stock insuficiente para "${i.nombre}" (máximo ${max})`
+        );
+        return;
+      }
+    }
+
     const payload = {
       ...values,
+      direccion: values.direccion?.trim() || "",
+      notas: "",
       items: items.map((i) => ({
         producto_id: i.producto_id,
         cantidad: i.cantidad,
@@ -258,8 +305,8 @@ export function CheckoutForm({
         nombre: created.nombre,
         telefono: created.telefono,
         correo: created.correo,
-        direccion: created.direccion,
-        notas: created.notas,
+        direccion: created.direccion || "",
+        notas: "",
         banco: created.banco,
         total: Number(created.total),
         metodo_pago: created.metodo_pago,
@@ -318,21 +365,21 @@ export function CheckoutForm({
             )}
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="direccion">Dirección</Label>
+            <Label htmlFor="direccion">
+              Dirección{" "}
+              <span className="font-normal text-muted-foreground">
+                (opcional)
+              </span>
+            </Label>
             <Textarea
               id="direccion"
-              rows={3}
+              rows={2}
               {...register("direccion")}
               autoComplete="street-address"
             />
-            {errors.direccion && (
-              <p className="text-sm text-destructive">
-                {errors.direccion.message}
-              </p>
-            )}
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="banco">Banco de la transferencia</Label>
+            <Label htmlFor="banco">Banco de origen del depósito</Label>
             <Input
               id="banco"
               placeholder="Ej. BAC, Banpaís, Ficohsa…"
@@ -341,13 +388,6 @@ export function CheckoutForm({
             {errors.banco && (
               <p className="text-sm text-destructive">{errors.banco.message}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Indica desde qué banco harás la transferencia
-            </p>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="notas">Notas (opcional)</Label>
-            <Textarea id="notas" rows={2} {...register("notas")} />
           </div>
         </div>
 
@@ -360,12 +400,7 @@ export function CheckoutForm({
               className="mt-1"
               {...register("metodo_pago")}
             />
-            <span>
-              <span className="block font-medium">Transferencia bancaria</span>
-              <span className="text-xs text-muted-foreground">
-                Sube el comprobante al finalizar para reservar tu par
-              </span>
-            </span>
+            <span className="font-medium">Transferencia bancaria</span>
           </label>
           <label
             className={`flex items-start gap-3 rounded-lg border p-3 ${
@@ -381,15 +416,13 @@ export function CheckoutForm({
               disabled={!linkPagoActivo}
               {...register("metodo_pago")}
             />
-            <span>
-              <span className="block font-medium">
-                Link de pago
-                {!linkPagoActivo && (
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    Próximamente
-                  </span>
-                )}
-              </span>
+            <span className="font-medium">
+              Link de pago
+              {!linkPagoActivo && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  Próximamente
+                </span>
+              )}
             </span>
           </label>
         </fieldset>

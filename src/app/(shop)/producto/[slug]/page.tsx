@@ -32,7 +32,8 @@ export default async function ProductoPage({ params }: Props) {
   const producto = await getProductoBySlug(params.slug);
   if (!producto) notFound();
 
-  const disponible = producto.disponible && producto.stock > 0;
+  const stock = Math.max(0, Math.floor(Number(producto.stock) || 0));
+  const disponible = producto.disponible && stock > 0;
   const imagen = imagenPrincipal(producto);
 
   return (
@@ -94,14 +95,8 @@ export default async function ProductoPage({ params }: Props) {
             </p>
           )}
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            {disponible
-              ? `Stock: ${producto.stock} unidad${producto.stock === 1 ? "" : "es"}`
-              : "Este artículo se muestra en el catálogo, pero no se puede comprar por ahora"}
-          </p>
-
           {producto.descripcion && (
-            <div className="mt-6 prose-sm max-w-none whitespace-pre-line text-muted-foreground">
+            <div className="mt-6 whitespace-pre-line text-sm text-muted-foreground">
               {producto.descripcion}
             </div>
           )}
@@ -111,9 +106,9 @@ export default async function ProductoPage({ params }: Props) {
               <AddToCartButton
                 producto_id={producto.id}
                 nombre={producto.nombre}
-                precio={producto.precio}
+                precio={Number(producto.precio)}
                 imagen={imagen}
-                stock={producto.stock}
+                stock={stock}
               />
             ) : (
               <p className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">

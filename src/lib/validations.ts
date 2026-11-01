@@ -57,11 +57,11 @@ export const checkoutSchema = z.object({
     .max(20)
     .regex(/^[\d+\s()-]+$/, "Teléfono inválido"),
   correo: z.string().email("Correo inválido"),
-  direccion: z.string().min(5, "Dirección requerida").max(500),
+  direccion: z.string().max(500).optional().default(""),
   notas: z.string().max(1000).optional().default(""),
   banco: z
     .string()
-    .min(2, "Indica el banco desde el que transfieres")
+    .min(2, "Indica el banco de origen del depósito")
     .max(120),
   metodo_pago: z.enum(["TRANSFERENCIA", "LINK_PAGO"]),
   items: z.array(checkoutItemSchema).min(1, "El carrito está vacío"),

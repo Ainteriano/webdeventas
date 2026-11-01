@@ -80,9 +80,9 @@ export function ComprobanteUpload({
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading || !file}>
+      <Button type="submit" disabled={loading || !file} className="w-full">
         <Upload className="h-4 w-4" />
-        {loading ? "Subiendo y reservando stock…" : "Subir comprobante"}
+        {loading ? "Subiendo…" : "Siguiente"}
       </Button>
     </form>
   );
