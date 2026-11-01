@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminPath } from "@/lib/admin";
-import { ESTADO_LABELS, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
+import { etiquetaEstadoSimple } from "@/lib/estados-pedido";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,7 @@ export default async function PedidoDetallePage({
             {formatDate(pedido.created_at)}
           </p>
         </div>
-        <Badge className="text-sm">{ESTADO_LABELS[pedido.estado]}</Badge>
+        <Badge className="text-sm">{etiquetaEstadoSimple(pedido.estado)}</Badge>
       </div>
 
       <Card>

@@ -21,7 +21,6 @@ import {
   actualizarEstadoPedidoAction,
   confirmarPedidoAction,
   getComprobanteSignedUrl,
-  rechazarPedidoAction,
 } from "../actions";
 
 export function PedidoAcciones({ pedido }: { pedido: Pedido }) {
@@ -46,9 +45,11 @@ export function PedidoAcciones({ pedido }: { pedido: Pedido }) {
     "RECHAZADO",
   ].includes(pedido.estado);
 
-  const puedeRechazar = ["COMPROBANTE_SUBIDO", "PENDIENTE_PAGO"].includes(
-    pedido.estado
-  );
+  const puedeCancelar = [
+    "COMPROBANTE_SUBIDO",
+    "PENDIENTE_PAGO",
+    "CONFIRMADO",
+  ].includes(pedido.estado);
 
   return (
     <div className="space-y-4">
@@ -84,104 +85,68 @@ export function PedidoAcciones({ pedido }: { pedido: Pedido }) {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" disabled={pending}>
-                Confirmar pedido
+                Confirmar
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Confirmar pedido?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Se descontará el stock con la función transaccional
-                  confirmar_pedido.
+                  El pedido quedará como Confirmado.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>No</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => run(() => confirmarPedidoAction(pedido.id))}
                 >
-                  Confirmar
+                  Sí
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
-
-        {pedido.estado === "CONFIRMADO" && (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={pending}
-            onClick={() =>
-              run(() =>
-                actualizarEstadoPedidoAction({
-                  pedido_id: pedido.id,
-                  estado: "ENVIADO",
-                })
-              )
-            }
-          >
-            Marcar enviado
-          </Button>
-        )}
-
-        {pedido.estado === "ENVIADO" && (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={pending}
-            onClick={() =>
-              run(() =>
-                actualizarEstadoPedidoAction({
-                  pedido_id: pedido.id,
-                  estado: "ENTREGADO",
-                })
-              )
-            }
-          >
-            Marcar entregado
-          </Button>
-        )}
       </div>
 
-      {puedeRechazar && (
+      {puedeCancelar && (
         <div className="space-y-2 border-t pt-4">
-          <Label htmlFor="motivo">Rechazar con motivo</Label>
+          <Label htmlFor="motivo">Cancelar pedido</Label>
           <Textarea
             id="motivo"
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Ej. Comprobante ilegible o monto incorrecto"
-            rows={3}
+            placeholder="Motivo (opcional)"
+            rows={2}
           />
           <Button
             type="button"
             variant="destructive"
-            disabled={pending || motivo.trim().length < 3}
+            disabled={pending}
             onClick={() =>
               run(() =>
-                rechazarPedidoAction({
+                actualizarEstadoPedidoAction({
                   pedido_id: pedido.id,
-                  motivo: motivo.trim(),
+                  estado: "CANCELADO",
+                  motivo: motivo.trim() || undefined,
                 })
               )
             }
           >
-            Rechazar
+            Cancelar
           </Button>
         </div>
       )}
 
       {comprobanteUrl && (
         <p className="text-xs text-muted-foreground">
-          URL firmada (~10 min). Si no se abrió,{" "}
+          Si no se abrió el comprobante,{" "}
           <a
             href={comprobanteUrl}
             target="_blank"
             rel="noreferrer"
             className="underline"
           >
-            ábrela aquí
+            ábrelo aquí
           </a>
           .
         </p>

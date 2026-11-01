@@ -107,10 +107,10 @@ export default async function AdminDashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="text-lg">Pedidos por confirmar</CardTitle>
-              <CardDescription>Estado COMPROBANTE_SUBIDO</CardDescription>
+              <CardDescription>Pendiente de confirmación</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm">
-              <Link href={`${adminPath}/pedidos?estado=COMPROBANTE_SUBIDO`}>
+              <Link href={`${adminPath}/pedidos?estado=pendiente`}>
                 Ver todos
               </Link>
             </Button>

@@ -1,34 +1,36 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminPath } from "@/lib/admin";
-import { ESTADO_LABELS, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { formatDate, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { EstadoPedido, Pedido } from "@/types/database";
+import { etiquetaEstadoSimple, tipoEstadoSimple } from "@/lib/estados-pedido";
 
-const ESTADOS: (EstadoPedido | "TODOS")[] = [
-  "TODOS",
-  "COMPROBANTE_SUBIDO",
-  "PENDIENTE_PAGO",
-  "CONFIRMADO",
-  "ENVIADO",
-  "ENTREGADO",
-  "RECHAZADO",
-  "CANCELADO",
+type Filtro = "TODOS" | "pendiente" | "confirmado" | "cancelado";
+
+const FILTROS: { key: Filtro; label: string }[] = [
+  { key: "TODOS", label: "Todos" },
+  { key: "pendiente", label: "Pendiente de confirmación" },
+  { key: "confirmado", label: "Confirmado" },
+  { key: "cancelado", label: "Cancelado" },
 ];
+
+const ESTADOS_POR_FILTRO: Record<Exclude<Filtro, "TODOS">, EstadoPedido[]> = {
+  pendiente: ["COMPROBANTE_SUBIDO", "PENDIENTE_PAGO"],
+  confirmado: ["CONFIRMADO", "ENVIADO", "ENTREGADO"],
+  cancelado: ["CANCELADO", "RECHAZADO"],
+};
 
 function badgeVariant(
   estado: EstadoPedido
 ): "default" | "secondary" | "destructive" | "success" | "warning" | "outline" {
-  switch (estado) {
-    case "COMPROBANTE_SUBIDO":
+  switch (tipoEstadoSimple(estado)) {
+    case "pendiente":
       return "warning";
-    case "CONFIRMADO":
-    case "ENVIADO":
-    case "ENTREGADO":
+    case "confirmado":
       return "success";
-    case "RECHAZADO":
-    case "CANCELADO":
+    case "cancelado":
       return "destructive";
     default:
       return "secondary";
@@ -42,7 +44,10 @@ export default async function PedidosPage({
 }) {
   const supabase = createClient();
   const adminPath = getAdminPath();
-  const estado = (searchParams.estado || "TODOS") as EstadoPedido | "TODOS";
+  const raw = searchParams.estado || "TODOS";
+  const filtro: Filtro = FILTROS.some((f) => f.key === raw)
+    ? (raw as Filtro)
+    : "TODOS";
 
   let query = supabase
     .from("pedidos")
@@ -50,8 +55,8 @@ export default async function PedidosPage({
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (estado !== "TODOS") {
-    query = query.eq("estado", estado);
+  if (filtro !== "TODOS") {
+    query = query.in("estado", ESTADOS_POR_FILTRO[filtro]);
   }
 
   const { data } = await query;
@@ -65,15 +70,15 @@ export default async function PedidosPage({
       <h1 className="text-2xl font-semibold tracking-tight">Pedidos</h1>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {ESTADOS.map((e) => {
+        {FILTROS.map((f) => {
           const href =
-            e === "TODOS"
+            f.key === "TODOS"
               ? `${adminPath}/pedidos`
-              : `${adminPath}/pedidos?estado=${e}`;
-          const active = estado === e;
+              : `${adminPath}/pedidos?estado=${f.key}`;
+          const active = filtro === f.key;
           return (
             <Link
-              key={e}
+              key={f.key}
               href={href}
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors",
@@ -82,7 +87,7 @@ export default async function PedidosPage({
                   : "bg-card hover:bg-muted"
               )}
             >
-              {e === "TODOS" ? "Todos" : ESTADO_LABELS[e]}
+              {f.label}
             </Link>
           );
         })}
@@ -101,7 +106,7 @@ export default async function PedidosPage({
                 <p className="text-sm text-muted-foreground">{p.nombre}</p>
               </div>
               <Badge variant={badgeVariant(p.estado)}>
-                {ESTADO_LABELS[p.estado]}
+                {etiquetaEstadoSimple(p.estado)}
               </Badge>
             </div>
             <div className="mt-2 flex justify-between text-sm">
@@ -148,7 +153,7 @@ export default async function PedidosPage({
                 <td className="p-3">{p.metodo_pago}</td>
                 <td className="p-3">
                   <Badge variant={badgeVariant(p.estado)}>
-                    {ESTADO_LABELS[p.estado]}
+                    {etiquetaEstadoSimple(p.estado)}
                   </Badge>
                 </td>
                 <td className="p-3 text-right font-medium">

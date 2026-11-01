@@ -9,11 +9,11 @@ export function formatPrice(value: number | string): string {
 }
 
 export const ESTADO_LABELS: Record<EstadoPedido, string> = {
-  PENDIENTE_PAGO: "Pendiente de pago",
-  COMPROBANTE_SUBIDO: "Comprobante subido",
+  PENDIENTE_PAGO: "Pendiente de confirmación",
+  COMPROBANTE_SUBIDO: "Pendiente de confirmación",
   CONFIRMADO: "Confirmado",
-  RECHAZADO: "Rechazado",
-  ENVIADO: "Enviado",
-  ENTREGADO: "Entregado",
+  RECHAZADO: "Cancelado",
+  ENVIADO: "Confirmado",
+  ENTREGADO: "Confirmado",
   CANCELADO: "Cancelado",
 };
