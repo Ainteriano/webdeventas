@@ -35,7 +35,11 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   // Liberar pedidos abandonados que sí hubieran reservado (legacy)
-  await admin.rpc("liberar_pedidos_expirados", { p_minutos: 45 }).catch(() => null);
+  try {
+    await admin.rpc("liberar_pedidos_expirados", { p_minutos: 45 });
+  } catch {
+    /* opcional */
+  }
 
   // Validar productos y stock actual (sin reservar aún)
   const ids = data.items.map((i) => i.producto_id);
