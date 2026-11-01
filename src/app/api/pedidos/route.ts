@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkoutSchema } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -34,57 +35,6 @@ export async function POST(request: Request) {
   const data = parsed.data;
   const admin = createAdminClient();
 
-  // Validar productos y stock
-  const ids = data.items.map((i) => i.producto_id);
-  const { data: productos, error: prodErr } = await admin
-    .from("productos")
-    .select("id, nombre, precio, stock, talla, disponible, activo")
-    .in("id", ids);
-
-  if (prodErr || !productos) {
-    return NextResponse.json(
-      { error: "No se pudieron validar los productos" },
-      { status: 500 }
-    );
-  }
-
-  const byId = new Map(productos.map((p) => [p.id, p]));
-  const lineas: {
-    producto_id: string;
-    nombre_snapshot: string;
-    precio_snapshot: number;
-    cantidad: number;
-    talla_snapshot: string;
-  }[] = [];
-  let total = 0;
-
-  for (const item of data.items) {
-    const p = byId.get(item.producto_id);
-    if (!p || !p.activo || !p.disponible) {
-      return NextResponse.json(
-        { error: `Producto no disponible` },
-        { status: 400 }
-      );
-    }
-    if (p.stock < item.cantidad) {
-      return NextResponse.json(
-        {
-          error: `Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`,
-        },
-        { status: 400 }
-      );
-    }
-    const precio = Number(p.precio);
-    lineas.push({
-      producto_id: p.id,
-      nombre_snapshot: p.nombre,
-      precio_snapshot: precio,
-      cantidad: item.cantidad,
-      talla_snapshot: (p as { talla?: string }).talla || "",
-    });
-    total += precio * item.cantidad;
-  }
-
   if (data.metodo_pago === "LINK_PAGO") {
     const { data: cfg } = await admin
       .from("configuracion_sitio")
@@ -105,68 +55,87 @@ export async function POST(request: Request) {
       ? codigoRow
       : `PED-${Date.now().toString(36).toUpperCase()}`;
 
-  const estadoInicial =
-    data.metodo_pago === "TRANSFERENCIA" ? "PENDIENTE_PAGO" : "PENDIENTE_PAGO";
+  const itemsPayload = data.items.map((i) => ({
+    producto_id: i.producto_id,
+    cantidad: i.cantidad,
+  }));
 
-  const { data: pedido, error: pedErr } = await admin
-    .from("pedidos")
-    .insert({
-      codigo,
-      nombre: data.nombre,
-      telefono: data.telefono,
-      correo: data.correo,
-      direccion: data.direccion?.trim() || "",
-      notas: "",
-      banco: data.banco,
-      total,
-      metodo_pago: data.metodo_pago,
-      estado: estadoInicial,
-    })
-    .select("*")
-    .single();
+  // Transacción atómica: bloquea productos, valida stock, crea pedido y reserva
+  const { data: pedido, error: pedErr } = await admin.rpc(
+    "crear_pedido_con_reserva",
+    {
+      p_codigo: codigo,
+      p_nombre: data.nombre,
+      p_telefono: data.telefono,
+      p_correo: data.correo,
+      p_direccion: data.direccion?.trim() || "",
+      p_notas: "",
+      p_banco: data.banco,
+      p_metodo_pago: data.metodo_pago,
+      p_items: itemsPayload,
+    }
+  );
 
   if (pedErr || !pedido) {
     console.error(pedErr);
+    const msg = pedErr?.message || "No se pudo crear el pedido";
+    const conflict =
+      /stock insuficiente|no disponible|no encontrado/i.test(msg);
     return NextResponse.json(
-      { error: "No se pudo crear el pedido" },
-      { status: 500 }
+      {
+        error: conflict
+          ? "Ese producto ya no tiene stock. Otro cliente pudo reservarlo."
+          : msg,
+      },
+      { status: conflict ? 409 : 500 }
     );
   }
 
-  const { error: itemsErr } = await admin.from("pedido_items").insert(
-    lineas.map((l) => ({ ...l, pedido_id: pedido.id }))
-  );
+  const pedidoRow = pedido as Pedido;
 
-  if (itemsErr) {
-    await admin.from("pedidos").delete().eq("id", pedido.id);
-    return NextResponse.json(
-      { error: "No se pudieron guardar los ítems" },
-      { status: 500 }
-    );
-  }
+  const { data: itemsDb } = await admin
+    .from("pedido_items")
+    .select("nombre_snapshot, precio_snapshot, cantidad, talla_snapshot")
+    .eq("pedido_id", pedidoRow.id);
+
+  const lineas = (itemsDb || []).map((l) => ({
+    nombre: l.nombre_snapshot,
+    precio: Number(l.precio_snapshot),
+    cantidad: l.cantidad,
+    talla: l.talla_snapshot || "",
+  }));
 
   let payment_url: string | null = null;
   let payment_reference: string | null = null;
 
   if (data.metodo_pago === "LINK_PAGO") {
     const provider = getPaymentProvider();
-    const result = await provider.createPayment(pedido as Pedido);
+    const result = await provider.createPayment({
+      ...pedidoRow,
+      total: Number(pedidoRow.total),
+    } as Pedido);
     payment_url = result.paymentUrl;
     payment_reference = result.paymentReference;
     await admin
       .from("pedidos")
       .update({ payment_url, payment_reference })
-      .eq("id", pedido.id);
+      .eq("id", pedidoRow.id);
   }
 
   const fullPedido = {
-    ...pedido,
+    ...pedidoRow,
     payment_url,
     payment_reference,
-    total: Number(pedido.total),
+    total: Number(pedidoRow.total),
   } as Pedido;
 
   void notifyPedidoCreado(fullPedido);
+
+  // Catálogo debe reflejar stock 0 / no disponible de inmediato
+  revalidatePath("/");
+  revalidatePath("/catalogo");
+  revalidatePath("/carrito");
+  revalidatePath("/checkout");
 
   const { data: config } = await admin
     .from("configuracion_sitio")
@@ -190,12 +159,7 @@ export async function POST(request: Request) {
       created_at: fullPedido.created_at,
       payment_url,
       payment_reference,
-      items: lineas.map((l) => ({
-        nombre: l.nombre_snapshot,
-        precio: l.precio_snapshot,
-        cantidad: l.cantidad,
-        talla: l.talla_snapshot,
-      })),
+      items: lineas,
     },
     comercio: {
       nombre_negocio: config?.nombre_negocio || "American Shoes",

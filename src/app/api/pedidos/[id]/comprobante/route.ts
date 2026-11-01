@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   COMPROBANTE_MIME,
@@ -62,21 +63,24 @@ export async function POST(
     );
   }
 
-  // Reservar stock ANTES de marcar comprobante (falla si no hay unidades)
-  const { error: reserveErr } = await admin.rpc("reservar_stock_pedido", {
-    p_pedido_id: pedidoId,
-  });
+  // Legacy: si el pedido no reservó al crearse, reservar ahora
+  const yaReservado = !!pedido.stock_reservado;
+  if (!yaReservado) {
+    const { error: reserveErr } = await admin.rpc("reservar_stock_pedido", {
+      p_pedido_id: pedidoId,
+    });
 
-  if (reserveErr) {
-    console.error(reserveErr);
-    return NextResponse.json(
-      {
-        error:
-          reserveErr.message ||
-          "No hay stock suficiente. Otro cliente pudo reservar este producto.",
-      },
-      { status: 409 }
-    );
+    if (reserveErr) {
+      console.error(reserveErr);
+      return NextResponse.json(
+        {
+          error:
+            reserveErr.message ||
+            "No hay stock suficiente. Otro cliente pudo reservar este producto.",
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const ext =
@@ -96,8 +100,10 @@ export async function POST(
     });
 
   if (upErr) {
-    // Liberar reserva si falló la subida
-    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
+    // Solo liberar si acabamos de reservar en este request (pedido legacy)
+    if (!yaReservado) {
+      await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
+    }
     console.error(upErr);
     return NextResponse.json(
       { error: "No se pudo subir el comprobante" },
@@ -119,12 +125,17 @@ export async function POST(
     .single();
 
   if (updErr || !updated) {
-    await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
+    if (!yaReservado) {
+      await admin.rpc("liberar_stock_pedido", { p_pedido_id: pedidoId });
+    }
     return NextResponse.json(
       { error: "No se pudo actualizar el pedido" },
       { status: 500 }
     );
   }
+
+  revalidatePath("/");
+  revalidatePath("/catalogo");
 
   void notifyCambioEstado(
     { ...updated, total: Number(updated.total) } as Pedido,
