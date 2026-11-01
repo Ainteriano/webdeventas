@@ -269,9 +269,11 @@ export function ProductosTabla({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                Disp.
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span title="Visible en sitio, sin compra si está apagado">
+                  Disponible compra
+                </span>
                 <Switch
                   checked={p.disponible}
                   disabled={pending}
@@ -283,9 +285,22 @@ export function ProductosTabla({
                   }
                 />
               </div>
-              <Badge variant={p.activo ? "success" : "secondary"}>
-                {p.activo ? "Activo" : "Inactivo"}
-              </Badge>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span title="Oculta del sitio si está apagado">En sitio</span>
+                <Badge variant={p.activo ? "success" : "secondary"}>
+                  {p.activo ? "Visible" : "Oculto"}
+                </Badge>
+                <Switch
+                  checked={p.activo}
+                  disabled={pending}
+                  onCheckedChange={(v) =>
+                    startTransition(async () => {
+                      await toggleProducto(p.id, "activo", v);
+                      router.refresh();
+                    })
+                  }
+                />
+              </div>
             </div>
           </div>
         ))}
@@ -309,8 +324,18 @@ export function ProductosTabla({
               <th className="p-3">Categoría</th>
               <th className="p-3">Precio</th>
               <th className="p-3">Stock</th>
-              <th className="p-3">Disp.</th>
-              <th className="p-3">Activo</th>
+              <th
+                className="p-3"
+                title="Sigue visible en el sitio, sin precio y en gris"
+              >
+                Compra
+              </th>
+              <th
+                className="p-3"
+                title="Si está apagado, se oculta del sitio (no se borra)"
+              >
+                En sitio
+              </th>
               <th className="p-3">Acciones</th>
             </tr>
           </thead>

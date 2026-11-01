@@ -39,9 +39,16 @@ import {
   setImagenPrincipal,
   subirImagenProducto,
 } from "./actions";
-import type { Categoria, Producto, ProductoImagen, Subcategoria } from "@/types/database";
+import type {
+  Categoria,
+  Producto,
+  ProductoImagen,
+  Subcategoria,
+} from "@/types/database";
 
 type FormValues = z.infer<typeof productoSchema>;
+
+type PendingPreview = { id: string; file: File; url: string };
 
 export function ProductoForm({
   producto,
@@ -60,10 +67,18 @@ export function ProductoForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [imgs, setImgs] = useState(imagenes);
+  const [pendingFiles, setPendingFiles] = useState<PendingPreview[]>([]);
 
   useEffect(() => {
     setImgs(imagenes);
   }, [imagenes]);
+
+  useEffect(() => {
+    return () => {
+      pendingFiles.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const {
     register,
@@ -92,27 +107,78 @@ export function ProductoForm({
     [subcategorias, categoriaId]
   );
 
-  function onSubmit(values: FormValues) {
-    setError(null);
-    startTransition(async () => {
-      const res = producto
-        ? await actualizarProducto(producto.id, values)
-        : await crearProducto(values);
-      if (res.error) {
-        setError(res.error);
-        return;
+  function addPendingFiles(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const next: PendingPreview[] = [];
+    for (const file of Array.from(fileList)) {
+      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+        setError("Solo se permiten JPG, PNG o WEBP");
+        continue;
       }
-      if (!producto && "id" in res && res.id) {
-        router.push(`${adminPath}/productos/${res.id}`);
-        router.refresh();
-      } else {
-        router.push(`${adminPath}/productos`);
-        router.refresh();
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Cada imagen debe pesar máximo 5 MB");
+        continue;
       }
+      next.push({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
+        file,
+        url: URL.createObjectURL(file),
+      });
+    }
+    if (next.length) {
+      setError(null);
+      setPendingFiles((prev) => [...prev, ...next]);
+    }
+  }
+
+  function removePending(id: string) {
+    setPendingFiles((prev) => {
+      const item = prev.find((p) => p.id === id);
+      if (item) URL.revokeObjectURL(item.url);
+      return prev.filter((p) => p.id !== id);
     });
   }
 
-  async function onUpload(fileList: FileList | null) {
+  function onSubmit(values: FormValues) {
+    setError(null);
+    startTransition(async () => {
+      if (producto) {
+        const res = await actualizarProducto(producto.id, values);
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        router.push(`${adminPath}/productos`);
+        router.refresh();
+        return;
+      }
+
+      const res = await crearProducto(values);
+      if (res.error || !("id" in res) || !res.id) {
+        setError(res.error || "No se pudo crear el producto");
+        return;
+      }
+
+      for (const item of pendingFiles) {
+        const fd = new FormData();
+        fd.append("file", item.file);
+        const up = await subirImagenProducto(res.id, fd);
+        if (up.error) {
+          setError(
+            `Producto creado, pero falló una foto: ${up.error}. Puedes completarlas editando el producto.`
+          );
+          router.push(`${adminPath}/productos/${res.id}`);
+          router.refresh();
+          return;
+        }
+      }
+
+      router.push(`${adminPath}/productos/${res.id}`);
+      router.refresh();
+    });
+  }
+
+  async function onUploadExisting(fileList: FileList | null) {
     if (!producto || !fileList?.length) return;
     setError(null);
     for (const file of Array.from(fileList)) {
@@ -163,7 +229,7 @@ export function ProductoForm({
           <Textarea rows={4} {...register("descripcion")} />
         </div>
         <div className="space-y-2">
-          <Label>Precio</Label>
+          <Label>Precio (Lempiras)</Label>
           <Input type="number" step="0.01" {...register("precio")} />
         </div>
         <div className="space-y-2">
@@ -212,39 +278,110 @@ export function ProductoForm({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label>Disponible</Label>
-          <Switch
-            checked={watch("disponible")}
-            onCheckedChange={(v) => setValue("disponible", v)}
-          />
+
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label>Disponible para compra</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Si lo apagas, el zapato sigue en el sitio (gris, sin precio),
+                pero no se puede comprar.
+              </p>
+            </div>
+            <Switch
+              checked={watch("disponible")}
+              onCheckedChange={(v) => setValue("disponible", v)}
+            />
+          </div>
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label>Activo en catálogo</Label>
-          <Switch
-            checked={watch("activo")}
-            onCheckedChange={(v) => setValue("activo", v)}
-          />
+
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label>Activo en el catálogo</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Si lo apagas, desaparece del sitio público. No se borra de la
+                base de datos.
+              </p>
+            </div>
+            <Switch
+              checked={watch("activo")}
+              onCheckedChange={(v) => setValue("activo", v)}
+            />
+          </div>
         </div>
       </div>
 
-      {producto && (
-        <div className="space-y-3 rounded-lg border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-medium">Imágenes</h3>
-            <Input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="max-w-xs"
-              multiple
-              onChange={(e) => void onUpload(e.target.files)}
-            />
+      {/* Imágenes: también al crear */}
+      <div className="space-y-3 rounded-lg border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-medium">Fotos del producto</h3>
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG o WEBP · máx. 5 MB · puedes subir varias
+            </p>
           </div>
+          <Input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="max-w-xs"
+            multiple
+            onChange={(e) => {
+              if (producto) void onUploadExisting(e.target.files);
+              else addPendingFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </div>
+
+        {!producto && pendingFiles.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {pendingFiles.map((item, idx) => (
+              <div
+                key={item.id}
+                className="relative overflow-hidden rounded-md border"
+              >
+                <div className="relative aspect-square">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-1 p-1">
+                  <span className="truncate px-1 text-[10px] text-muted-foreground">
+                    {idx === 0 ? "Principal" : `Foto ${idx + 1}`}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => removePending(item.id)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {producto && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {imgs.map((img, idx) => (
-              <div key={img.id} className="relative overflow-hidden rounded-md border">
+              <div
+                key={img.id}
+                className="relative overflow-hidden rounded-md border"
+              >
                 <div className="relative aspect-square">
-                  <Image src={img.url} alt="" fill className="object-cover" sizes="150px" />
+                  <Image
+                    src={img.url}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="150px"
+                  />
                 </div>
                 <div className="flex flex-wrap gap-1 p-1">
                   <Button
@@ -291,7 +428,9 @@ export function ProductoForm({
                     onClick={() =>
                       startTransition(async () => {
                         await eliminarImagenProducto(img.id);
-                        setImgs((prev) => prev.filter((i) => i.id !== img.id));
+                        setImgs((prev) =>
+                          prev.filter((i) => i.id !== img.id)
+                        );
                       })
                     }
                   >
@@ -301,8 +440,8 @@ export function ProductoForm({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

@@ -56,11 +56,17 @@ export default async function ProductoPage({ params }: Props) {
         <span className="text-foreground">{producto.nombre}</span>
       </nav>
 
-      <div className="grid gap-8 md:grid-cols-2 md:gap-12">
-        <ProductGallery
-          imagenes={producto.producto_imagenes || []}
-          alt={producto.nombre}
-        />
+      <div
+        className={`grid gap-8 md:grid-cols-2 md:gap-12 ${
+          !disponible ? "opacity-90" : ""
+        }`}
+      >
+        <div className={!disponible ? "grayscale" : undefined}>
+          <ProductGallery
+            imagenes={producto.producto_imagenes || []}
+            alt={producto.nombre}
+          />
+        </div>
 
         <div className="flex flex-col">
           <Badge
@@ -70,18 +76,28 @@ export default async function ProductoPage({ params }: Props) {
             {disponible ? "Disponible" : "No disponible"}
           </Badge>
 
-          <h1 className="mt-3 font-display text-3xl sm:text-4xl">
+          <h1
+            className={`mt-3 font-display text-3xl sm:text-4xl ${
+              !disponible ? "text-muted-foreground" : ""
+            }`}
+          >
             {producto.nombre}
           </h1>
 
-          <p className="mt-4 text-2xl font-semibold text-primary">
-            {formatPrice(producto.precio)}
-          </p>
+          {disponible ? (
+            <p className="mt-4 text-2xl font-semibold text-primary">
+              {formatPrice(producto.precio)}
+            </p>
+          ) : (
+            <p className="mt-4 text-lg text-muted-foreground">
+              Precio no disponible
+            </p>
+          )}
 
           <p className="mt-2 text-sm text-muted-foreground">
             {disponible
               ? `Stock: ${producto.stock} unidad${producto.stock === 1 ? "" : "es"}`
-              : "Sin existencias por el momento"}
+              : "Este artículo se muestra en el catálogo, pero no se puede comprar por ahora"}
           </p>
 
           {producto.descripcion && (
@@ -101,7 +117,7 @@ export default async function ProductoPage({ params }: Props) {
               />
             ) : (
               <p className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                Este producto no está disponible para compra en este momento.
+                No disponible para compra. Sigue visible en el catálogo.
               </p>
             )}
           </div>
