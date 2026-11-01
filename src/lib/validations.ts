@@ -29,8 +29,11 @@ export const productoSchema = z.object({
   talla: z
     .string()
     .trim()
-    .min(1, "La talla es obligatoria")
-    .max(30, "Talla demasiado larga"),
+    .toUpperCase()
+    .regex(
+      /^\d+(\.5)?[MW]$/,
+      "Usa talla americana: número + M (hombre) o W (mujer). Ej. 8M, 7W"
+    ),
   categoria_id: z.string().uuid("Categoría inválida"),
   subcategoria_id: z.string().uuid().nullable().optional(),
   disponible: z.boolean().default(true),

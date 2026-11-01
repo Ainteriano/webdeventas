@@ -15,6 +15,12 @@ import {
   X,
 } from "lucide-react";
 import { productoSchema } from "@/lib/validations";
+import {
+  TALLA_GENEROS,
+  TALLA_NUMEROS,
+  formatTallaAmericana,
+  parseTallaAmericana,
+} from "@/lib/tallas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,10 +118,37 @@ export function ProductoForm({
   });
 
   const categoriaId = watch("categoria_id");
+  const tallaActual = watch("talla");
+  const tallaParsed = useMemo(
+    () => parseTallaAmericana(tallaActual),
+    [tallaActual]
+  );
+  const [tallaNumero, setTallaNumero] = useState(
+    () => parseTallaAmericana(producto?.talla)?.numero || "8"
+  );
+  const [tallaGenero, setTallaGenero] = useState<"M" | "W">(
+    () => parseTallaAmericana(producto?.talla)?.genero || "M"
+  );
+
   const subs = useMemo(
     () => subcategorias.filter((s) => s.categoria_id === categoriaId),
     [subcategorias, categoriaId]
   );
+
+  useEffect(() => {
+    setValue("talla", formatTallaAmericana(tallaNumero, tallaGenero), {
+      shouldValidate: true,
+    });
+  }, [tallaNumero, tallaGenero, setValue]);
+
+  useEffect(() => {
+    if (tallaParsed) {
+      setTallaNumero(tallaParsed.numero);
+      setTallaGenero(tallaParsed.genero);
+    }
+    // Solo al montar / cambiar producto externo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [producto?.id]);
 
   function validateFiles(fileList: FileList | null): File[] {
     if (!fileList?.length) return [];
@@ -430,18 +463,51 @@ export function ProductoForm({
           )}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="talla">Talla</Label>
-            <Input
-              id="talla"
-              placeholder="Ej. 40"
-              {...register("talla")}
-            />
-            {errors.talla && (
-              <p className="text-sm text-destructive">{errors.talla.message}</p>
-            )}
+        <div className="space-y-2">
+          <Label>Talla americana</Label>
+          <input type="hidden" {...register("talla")} />
+          <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
+            <Select value={tallaNumero} onValueChange={setTallaNumero}>
+              <SelectTrigger>
+                <SelectValue placeholder="Número" />
+              </SelectTrigger>
+              <SelectContent>
+                {TALLA_NUMEROS.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={tallaGenero}
+              onValueChange={(v) => setTallaGenero(v as "M" | "W")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="M / W" />
+              </SelectTrigger>
+              <SelectContent>
+                {TALLA_GENEROS.map((g) => (
+                  <SelectItem key={g.value} value={g.value}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Seleccionada:{" "}
+            <span className="font-semibold text-foreground">
+              {formatTallaAmericana(tallaNumero, tallaGenero)}
+            </span>{" "}
+            · M = Hombre · W = Mujer
+          </p>
+          {errors.talla && (
+            <p className="text-sm text-destructive">{errors.talla.message}</p>
+          )}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="precio">Precio (L)</Label>
             <Input
