@@ -1,0 +1,11 @@
+# Config mínima para Supabase CLI.
+# Usa `supabase link` y `supabase db push` para aplicar migraciones.
+
+[project]
+id = "catalogo-ventas"
+
+[db]
+major_version = 15
+
+[auth]
+enable_signup = false
