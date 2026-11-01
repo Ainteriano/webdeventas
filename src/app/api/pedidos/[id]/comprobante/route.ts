@@ -6,7 +6,9 @@ import {
   MAX_COMPROBANTE_BYTES,
 } from "@/lib/validations";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getAdminPath } from "@/lib/admin";
 import { notifyCambioEstado } from "@/lib/email";
+import { notifyAdminNuevoPedido } from "@/lib/admin-notify";
 import type { EstadoPedido, Pedido } from "@/types/database";
 
 /**
@@ -130,13 +132,22 @@ export async function POST(
   }
 
   // Catálogo: producto pasa a No disponible si stock llegó a 0
+  const adminPath = getAdminPath();
   revalidatePath("/");
   revalidatePath("/catalogo");
+  revalidatePath(adminPath);
+  revalidatePath(`${adminPath}/pedidos`);
 
   void notifyCambioEstado(
     { ...updated, total: Number(updated.total) } as Pedido,
     estadoAnterior
   );
+
+  // Alerta inmediata al panel admin (no depende de RLS en postgres_changes)
+  void notifyAdminNuevoPedido({
+    id: updated.id,
+    codigo: updated.codigo,
+  });
 
   const { data: config } = await admin
     .from("configuracion_sitio")

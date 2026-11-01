@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ type PedidoRow = {
   id: string;
   codigo?: string;
   estado?: string;
+  updated_at?: string;
+  created_at?: string;
 };
 
 function beep() {
@@ -33,70 +36,125 @@ function beep() {
 }
 
 export function OrderAlerts({ adminPath }: { adminPath: string }) {
+  const router = useRouter();
   const [pedidoIds, setPedidoIds] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
-  const seen = useRef<Set<string>>(new Set());
+  /** Pedidos ya conocidos (baseline + alertados). No vuelven a alertar. */
+  const known = useRef<Set<string>>(new Set());
+  const ready = useRef(false);
+
+  const addPedidos = useCallback(
+    (ids: string[]) => {
+      const fresh = ids.filter((id) => id && !known.current.has(id));
+      if (fresh.length === 0) return;
+
+      for (const id of fresh) known.current.add(id);
+
+      setPedidoIds((prev) => {
+        const merged = [...prev];
+        for (const id of fresh) {
+          if (!merged.includes(id)) merged.push(id);
+        }
+        return merged;
+      });
+      setOpen(true);
+      beep();
+      router.refresh();
+    },
+    [router]
+  );
+
+  const removePedido = useCallback((id: string) => {
+    if (!id) return;
+    setPedidoIds((prev) => prev.filter((x) => x !== id));
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    function addPedido(id: string) {
-      if (!id || seen.current.has(id)) return;
-      seen.current.add(id);
-      setPedidoIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-      setOpen(true);
-      beep();
+    async function fetchPendienteIds(): Promise<string[]> {
+      // API con cookie de sesión (más fiable que el cliente browser + RLS)
+      try {
+        const res = await fetch("/api/admin/pedidos-pendientes", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { ids?: string[] };
+        return data.ids || [];
+      } catch {
+        return [];
+      }
     }
 
-    function removePedido(id: string) {
-      if (!id) return;
-      seen.current.delete(id);
-      setPedidoIds((prev) => prev.filter((x) => x !== id));
+    async function start() {
+      await supabase.auth.getSession();
+
+      const baseline = await fetchPendienteIds();
+      if (cancelled) return;
+
+      for (const id of baseline) known.current.add(id);
+      ready.current = true;
+
+      channel = supabase
+        .channel("admin-order-alerts")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "pedidos" },
+          (payload) => {
+            const row = (payload.new || {}) as PedidoRow;
+            if (!row.id) return;
+
+            if (row.estado === "COMPROBANTE_SUBIDO") {
+              addPedidos([row.id]);
+              return;
+            }
+
+            if (
+              row.estado &&
+              row.estado !== "COMPROBANTE_SUBIDO" &&
+              row.estado !== "PENDIENTE_PAGO"
+            ) {
+              removePedido(row.id);
+            }
+          }
+        )
+        .on("broadcast", { event: "nuevo-pedido" }, ({ payload }) => {
+          const id = (payload as { id?: string } | null)?.id;
+          if (id) addPedidos([id]);
+        })
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn("[OrderAlerts] realtime:", status);
+          }
+        });
+
+      // Fallback cada 4s por si Realtime no llega
+      pollTimer = setInterval(() => {
+        if (!ready.current || cancelled) return;
+        void fetchPendienteIds().then((ids) => {
+          if (!cancelled) addPedidos(ids);
+        });
+      }, 4000);
     }
 
-    const channel = supabase
-      .channel("admin-pedidos-alerts")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "pedidos" },
-        (payload) => {
-          const row = payload.new as PedidoRow;
-          const prev = payload.old as PedidoRow | undefined;
-
-          // Compra completada = comprobante subido
-          if (
-            row.estado === "COMPROBANTE_SUBIDO" &&
-            prev?.estado !== "COMPROBANTE_SUBIDO"
-          ) {
-            addPedido(row.id);
-            return;
-          }
-
-          // Ya no está pendiente → quitar de la alerta acumulada
-          if (
-            row.estado &&
-            row.estado !== "COMPROBANTE_SUBIDO" &&
-            row.estado !== "PENDIENTE_PAGO"
-          ) {
-            removePedido(row.id);
-          }
-        }
-      )
-      .subscribe();
+    void start();
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [addPedidos, removePedido]);
 
-  // Si se vacía la lista, cerrar popup
   useEffect(() => {
     if (pedidoIds.length === 0) setOpen(false);
   }, [pedidoIds.length]);
 
   function dismiss() {
-    // Cierra y limpia el contador; los mismos pedidos no vuelven a alertar.
-    // Un pedido nuevo sí abrirá de nuevo el popup.
     setOpen(false);
     setPedidoIds([]);
   }
@@ -156,7 +214,12 @@ export function OrderAlerts({ adminPath }: { adminPath: string }) {
               {count === 1 ? "Ver pedido" : "Ver pedidos"}
             </Link>
           </Button>
-          <Button type="button" variant="outline" className="flex-1" onClick={dismiss}>
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={dismiss}
+          >
             Cerrar
           </Button>
         </div>
