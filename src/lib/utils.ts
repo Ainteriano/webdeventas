@@ -7,9 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatPrice(value: number | string): string {
   const n = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("es-MX", {
+  return new Intl.NumberFormat("es-HN", {
     style: "currency",
-    currency: "MXN",
+    currency: "HNL",
   }).format(n);
 }
 
@@ -23,7 +23,7 @@ export function slugify(text: string): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("es-HN", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(typeof date === "string" ? new Date(date) : date);

@@ -2,9 +2,9 @@ import type { EstadoPedido } from "@/types/database";
 
 export function formatPrice(value: number | string): string {
   const n = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("es-MX", {
+  return new Intl.NumberFormat("es-HN", {
     style: "currency",
-    currency: "MXN",
+    currency: "HNL",
   }).format(Number.isFinite(n) ? n : 0);
 }
 

@@ -20,7 +20,7 @@ export default async function HomePage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage:
-              "url(https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80)",
+              "url(https://images.unsplash.com/photo-1549298916-b41d501d3772?w=1600&q=80)",
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/55 to-transparent" />
@@ -28,9 +28,12 @@ export default async function HomePage() {
           <p className="animate-fade-in font-display text-4xl sm:text-6xl md:text-7xl">
             {nombre}
           </p>
+          <p className="mt-2 text-sm uppercase tracking-[0.2em] text-white/70 sm:text-base">
+            Outlet Shoes San Pedro Sula
+          </p>
           <p className="mt-4 max-w-md animate-slide-up text-base text-white/85 sm:text-lg">
-            Productos seleccionados, listos para pedir en línea con seguimiento
-            y pago por transferencia.
+            Zapatos para hombre, mujer e infantil. Pide en línea con
+            transferencia en lempiras y seguimiento de tu pedido.
           </p>
           <div className="mt-8 flex animate-slide-up flex-wrap gap-3">
             <Button asChild size="lg" className="bg-accent hover:bg-accent/90">
