@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { ImageIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import { Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  COMPROBANTE_MIME,
-  MAX_COMPROBANTE_BYTES,
-} from "@/lib/validations";
+import { MAX_COMPROBANTE_BYTES } from "@/lib/validations";
 import type { PedidoPdfData } from "@/lib/pedido-pdf";
+
+const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;
 
 export function ComprobanteUpload({
   pedidoId,
@@ -20,6 +19,7 @@ export function ComprobanteUpload({
     comercio: PedidoPdfData["comercio"];
   }) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,10 +30,25 @@ export function ComprobanteUpload({
     setError(null);
     if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
-    setFile(next);
-    if (next?.type.startsWith("image/")) {
-      setPreview(URL.createObjectURL(next));
+    setFile(null);
+    if (!next) return;
+
+    const type = next.type.toLowerCase();
+    const okType =
+      IMAGE_TYPES.includes(type as (typeof IMAGE_TYPES)[number]) ||
+      /\.(jpe?g|png|webp)$/i.test(next.name);
+
+    if (!okType) {
+      setError("Elige una foto (JPG, PNG o WEBP) de tu galería");
+      return;
     }
+    if (next.size > MAX_COMPROBANTE_BYTES) {
+      setError("La foto no debe superar 5 MB");
+      return;
+    }
+
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,14 +56,6 @@ export function ComprobanteUpload({
     setError(null);
     if (!file) {
       setError("Selecciona una foto de tu galería");
-      return;
-    }
-    if (!COMPROBANTE_MIME.includes(file.type as (typeof COMPROBANTE_MIME)[number])) {
-      setError("Formato no válido. Usa JPG, PNG o PDF.");
-      return;
-    }
-    if (file.size > MAX_COMPROBANTE_BYTES) {
-      setError("El archivo no debe superar 5 MB");
       return;
     }
 
@@ -80,23 +87,28 @@ export function ComprobanteUpload({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="comprobante">Foto del comprobante</Label>
-        <label
-          htmlFor="comprobante"
-          className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground hover:border-primary/40 hover:bg-muted/50"
+        <Label>Foto del comprobante</Label>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/50"
         >
-          <ImageIcon className="h-8 w-8" />
+          <Images className="h-8 w-8" />
           <span className="font-medium text-foreground">
-            {file ? file.name : "Elegir de la galería"}
+            {file ? file.name : "Elegir foto de la galería"}
           </span>
-          <span className="text-xs">JPG, PNG o PDF · máx. 5 MB</span>
-        </label>
-        {/* Sin capture= → en móvil abre galería / archivos, no solo cámara */}
+          <span className="text-xs">Solo fotos · JPG o PNG · máx. 5 MB</span>
+        </button>
+        {/*
+          Solo image/* (sin PDF ni capture):
+          iOS → Fotos/Galería
+          Android → suele priorizar Galería / Fotos
+        */}
         <input
-          id="comprobante"
+          ref={inputRef}
           type="file"
-          accept="image/*,image/jpeg,image/png,image/jpg,application/pdf,.jpg,.jpeg,.png,.pdf"
-          className="sr-only"
+          accept="image/*"
+          className="hidden"
           onChange={(e) => {
             onPick(e.target.files);
             e.target.value = "";
@@ -109,12 +121,16 @@ export function ComprobanteUpload({
         <img
           src={preview}
           alt="Vista previa"
-          className="max-h-56 w-full rounded-lg border object-contain bg-muted"
+          className="mx-auto max-h-64 w-full rounded-lg border object-contain bg-muted"
         />
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading || !file} className="w-full">
+      <Button
+        type="submit"
+        disabled={loading || !file}
+        className="h-12 w-full text-base"
+      >
         {loading ? "Completando compra…" : "Siguiente"}
       </Button>
     </form>

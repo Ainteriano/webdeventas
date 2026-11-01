@@ -25,14 +25,14 @@ export function CartView() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-      <ul className="divide-y rounded-xl border bg-card/70">
+    <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:gap-8">
+      <ul className="order-2 divide-y rounded-xl border bg-card/70 lg:order-1">
         {items.map((item) => {
           const maxStock = Math.max(0, Math.floor(Number(item.stock) || 0));
           const atMax = item.cantidad >= maxStock;
           return (
-            <li key={item.producto_id} className="flex gap-3 p-4 sm:gap-4">
-              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+            <li key={item.producto_id} className="flex gap-3 p-3 sm:gap-4 sm:p-4">
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted sm:h-20 sm:w-20">
                 {item.imagen ? (
                   <Image
                     src={item.imagen}
@@ -100,13 +100,13 @@ export function CartView() {
         })}
       </ul>
 
-      <aside className="h-fit rounded-xl border bg-card p-5 shadow-sm lg:sticky lg:top-24">
-        <h2 className="font-display text-xl">Resumen</h2>
+      <aside className="order-1 h-fit rounded-xl border bg-card p-4 shadow-sm sm:p-5 lg:order-2 lg:sticky lg:top-24">
+        <h2 className="font-display text-lg sm:text-xl">Resumen</h2>
         <div className="mt-4 flex justify-between text-sm">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="font-semibold tabular-nums">{formatPrice(total())}</span>
         </div>
-        <Button asChild size="lg" className="mt-6 w-full">
+        <Button asChild size="lg" className="mt-5 h-12 w-full text-base">
           <Link href="/checkout">Ir a pagar</Link>
         </Button>
         <Button asChild variant="ghost" className="mt-2 w-full">

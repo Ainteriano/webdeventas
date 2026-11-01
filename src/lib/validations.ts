@@ -116,6 +116,7 @@ export const COMPROBANTE_MIME = [
   "image/jpeg",
   "image/jpg",
   "image/png",
+  "image/webp",
   "application/pdf",
 ] as const;
 

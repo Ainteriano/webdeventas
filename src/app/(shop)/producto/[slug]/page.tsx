@@ -37,7 +37,7 @@ export default async function ProductoPage({ params }: Props) {
   const imagen = imagenPrincipal(producto);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+    <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-10">
       <nav className="mb-6 text-sm text-muted-foreground">
         <Link href="/catalogo" className="hover:text-foreground">
           Catálogo

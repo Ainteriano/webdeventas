@@ -31,7 +31,7 @@ export default async function ShopLayout({
           logoUrl={config?.logo_url}
           categorias={navCategorias}
         />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 overflow-x-hidden pb-24 sm:pb-8">{children}</main>
         <SiteFooter config={config} />
       </div>
       <StockRealtime />

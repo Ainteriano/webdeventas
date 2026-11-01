@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ComprobanteUpload } from "@/components/storefront/comprobante-upload";
 import { descargarPedidoPdf, type PedidoPdfData } from "@/lib/pedido-pdf";
+import { scrollToPageTop } from "@/lib/scroll-top";
 
 const checkoutFormSchema = checkoutSchema.omit({ items: true });
 type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
@@ -37,6 +38,7 @@ export function CheckoutForm({
   const [pedido, setPedido] = useState<PedidoResumen | null>(null);
   const [copied, setCopied] = useState(false);
   const pdfAutoDone = useRef(false);
+  const topRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -58,6 +60,21 @@ export function CheckoutForm({
 
   const metodo = watch("metodo_pago");
 
+  function goToStep(next: Step) {
+    setStep(next);
+    scrollToPageTop();
+    window.setTimeout(() => {
+      topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollToPageTop();
+    }, 50);
+  }
+
+  // Al cambiar de paso, siempre subir al inicio
+  useEffect(() => {
+    scrollToPageTop();
+    topRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+  }, [step]);
+
   // Auto-descargar PDF al entrar al resumen
   useEffect(() => {
     if (step !== "summary" || !pedido || pdfAutoDone.current) return;
@@ -74,7 +91,7 @@ export function CheckoutForm({
 
   if (items.length === 0 && step === "form") {
     return (
-      <div className="rounded-xl border border-dashed bg-muted/40 px-6 py-16 text-center">
+      <div className="rounded-xl border border-dashed bg-muted/40 px-4 py-12 text-center sm:px-6 sm:py-16">
         <p className="text-muted-foreground">No hay productos en el carrito.</p>
         <Button asChild className="mt-4">
           <Link href="/catalogo">Ir al catálogo</Link>
@@ -86,12 +103,12 @@ export function CheckoutForm({
   // Paso: Resumen + PDF (antes de cerrar)
   if (step === "summary" && pedido) {
     return (
-      <div className="mx-auto max-w-2xl space-y-5 animate-fade-in">
-        <div className="rounded-xl border-2 border-amber-400/60 bg-amber-50 px-5 py-4 text-center">
-          <p className="text-base font-semibold text-amber-950">
+      <div ref={topRef} className="mx-auto max-w-2xl space-y-4 animate-fade-in sm:space-y-5">
+        <div className="rounded-xl border-2 border-amber-400/60 bg-amber-50 px-4 py-4 text-center sm:px-5">
+          <p className="text-sm font-semibold text-amber-950 sm:text-base">
             ¡No olvides guardar el número de seguimiento, es muy importante!
           </p>
-          <p className="mt-3 font-mono text-2xl font-bold tracking-wider text-foreground sm:text-3xl">
+          <p className="mt-3 break-all font-mono text-xl font-bold tracking-wider text-foreground sm:text-3xl">
             {pedido.codigo}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -126,8 +143,8 @@ export function CheckoutForm({
           </p>
         </div>
 
-        <div className="rounded-xl border bg-card p-5 sm:p-6">
-          <h2 className="font-display text-xl">Resumen del pedido</h2>
+        <div className="rounded-xl border bg-card p-4 sm:p-6">
+          <h2 className="font-display text-lg sm:text-xl">Resumen del pedido</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {formatDate(pedido.created_at)}
           </p>
@@ -177,8 +194,8 @@ export function CheckoutForm({
         <Button
           type="button"
           size="lg"
-          className="w-full"
-          onClick={() => setStep("done")}
+          className="h-12 w-full text-base"
+          onClick={() => goToStep("done")}
         >
           Completar
         </Button>
@@ -189,11 +206,14 @@ export function CheckoutForm({
   // Paso final: compra enviada / pendiente
   if (step === "done" && pedido) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-card px-6 py-14 text-center shadow-sm animate-fade-in">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <CheckCircle2 className="h-12 w-12" />
+      <div
+        ref={topRef}
+        className="mx-auto flex max-w-md flex-col items-center rounded-2xl border bg-card px-4 py-10 text-center shadow-sm animate-fade-in sm:px-6 sm:py-14"
+      >
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-20 sm:w-20">
+          <CheckCircle2 className="h-10 w-10 sm:h-12 sm:w-12" />
         </div>
-        <h2 className="mt-6 font-display text-3xl">Compra realizada</h2>
+        <h2 className="mt-6 font-display text-2xl sm:text-3xl">Compra realizada</h2>
         <p className="mt-3 text-muted-foreground">
           Tu pedido está pendiente de confirmación. Guarda tu código de
           seguimiento.
@@ -224,12 +244,15 @@ export function CheckoutForm({
   // Paso: Subir comprobante
   if (step === "upload" && pedido) {
     return (
-      <div className="mx-auto max-w-lg space-y-6 rounded-xl border bg-card p-6 shadow-sm">
+      <div
+        ref={topRef}
+        className="mx-auto max-w-lg space-y-5 rounded-xl border bg-card p-4 shadow-sm sm:space-y-6 sm:p-6"
+      >
         <div>
-          <h2 className="font-display text-2xl">Sube tu comprobante</h2>
+          <h2 className="font-display text-xl sm:text-2xl">Sube tu comprobante</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Pedido{" "}
-            <span className="font-mono font-semibold text-foreground">
+            <span className="break-all font-mono font-semibold text-foreground">
               {pedido.codigo}
             </span>
           </p>
@@ -245,7 +268,7 @@ export function CheckoutForm({
                 id: p.id || pedido.id,
                 comercio: c,
               });
-              setStep("summary");
+              goToStep("summary");
             }}
           />
         ) : (
@@ -316,7 +339,7 @@ export function CheckoutForm({
         comercio: data.comercio || comercio,
       });
       // Carrito se limpia al completar el pago (comprobante), no al iniciar
-      setStep("upload");
+      goToStep("upload");
     } catch (err) {
       setServerError(
         err instanceof Error ? err.message : "Error al crear el pedido"
@@ -327,10 +350,10 @@ export function CheckoutForm({
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="grid gap-8 lg:grid-cols-[1fr_300px]"
+      className="grid gap-5 lg:grid-cols-[1fr_300px] lg:gap-8"
     >
-      <div className="space-y-5 rounded-xl border bg-card/70 p-5 sm:p-6">
-        <h2 className="font-display text-xl">Datos de entrega</h2>
+      <div ref={topRef} className="order-2 space-y-5 rounded-xl border bg-card/70 p-4 sm:p-6 lg:order-1">
+        <h2 className="font-display text-lg sm:text-xl">Datos de entrega</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
@@ -438,15 +461,15 @@ export function CheckoutForm({
         <Button
           type="submit"
           size="lg"
-          className="w-full sm:w-auto"
+          className="h-12 w-full text-base"
           disabled={isSubmitting || (metodo === "LINK_PAGO" && !linkPagoActivo)}
         >
           {isSubmitting ? "Creando pedido…" : "Continuar"}
         </Button>
       </div>
 
-      <aside className="h-fit rounded-xl border bg-card p-5 shadow-sm lg:sticky lg:top-24">
-        <h2 className="font-display text-lg">Tu pedido</h2>
+      <aside className="order-1 h-fit rounded-xl border bg-card p-4 shadow-sm sm:p-5 lg:order-2 lg:sticky lg:top-24">
+        <h2 className="font-display text-base sm:text-lg">Tu pedido</h2>
         <ul className="mt-4 space-y-3 text-sm">
           {items.map((i) => (
             <li key={i.producto_id} className="flex justify-between gap-2">

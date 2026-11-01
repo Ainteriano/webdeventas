@@ -15,7 +15,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <section className="relative min-h-[72vh] overflow-hidden">
+      <section className="relative min-h-[70svh] overflow-hidden sm:min-h-[72vh]">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -24,8 +24,8 @@ export default async function HomePage() {
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/55 to-transparent" />
-        <div className="relative mx-auto flex min-h-[72vh] max-w-6xl flex-col justify-center px-4 py-20 text-white">
-          <p className="animate-fade-in font-display text-4xl sm:text-6xl md:text-7xl">
+        <div className="relative mx-auto flex min-h-[70svh] max-w-6xl flex-col justify-center px-4 py-14 text-white sm:min-h-[72vh] sm:py-20">
+          <p className="animate-fade-in font-display text-3xl sm:text-6xl md:text-7xl">
             {nombre}
           </p>
           <p className="mt-2 text-sm uppercase tracking-[0.2em] text-white/70 sm:text-base">

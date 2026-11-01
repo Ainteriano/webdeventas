@@ -40,10 +40,10 @@ export default async function CatalogoPage({
     : categoriaActiva?.nombre || "Catálogo";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-10">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-8 sm:gap-4">
         <div>
-          <h1 className="font-display text-3xl sm:text-4xl">{titulo}</h1>
+          <h1 className="font-display text-2xl sm:text-4xl">{titulo}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {categoriaActiva
               ? "Elige un par y agrégalo al carrito"

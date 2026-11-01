@@ -68,16 +68,16 @@ export function SiteHeader({
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:h-16 sm:px-4">
         <Link
           href="/"
-          className="flex items-center gap-2 font-display text-xl tracking-tight"
+          className="flex min-w-0 items-center gap-2 font-display text-lg tracking-tight sm:text-xl"
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={nombreNegocio} className="h-8 w-auto" />
+            <img src={logoUrl} alt={nombreNegocio} className="h-7 w-auto sm:h-8" />
           ) : null}
-          <span>{nombreNegocio}</span>
+          <span className="truncate">{nombreNegocio}</span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">
