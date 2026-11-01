@@ -32,6 +32,18 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
+
+  // Transferencia: el pedido se crea solo al completar con comprobante
+  if (data.metodo_pago === "TRANSFERENCIA") {
+    return NextResponse.json(
+      {
+        error:
+          "Usa el flujo de completar compra (subir comprobante). El pedido no se registra hasta entonces.",
+      },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminClient();
 
   // Liberar pedidos abandonados que sí hubieran reservado (legacy)

@@ -22,6 +22,7 @@ type CheckoutFormValues = z.infer<typeof checkoutFormSchema>;
 
 type Step = "form" | "upload" | "summary" | "done";
 type PedidoResumen = PedidoPdfData;
+type CheckoutDraft = z.infer<typeof checkoutSchema>;
 
 export function CheckoutForm({
   linkPagoActivo,
@@ -35,6 +36,7 @@ export function CheckoutForm({
   const clear = useCart((s) => s.clear);
   const [serverError, setServerError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("form");
+  const [draft, setDraft] = useState<CheckoutDraft | null>(null);
   const [pedido, setPedido] = useState<PedidoResumen | null>(null);
   const [copied, setCopied] = useState(false);
   const pdfAutoDone = useRef(false);
@@ -241,8 +243,8 @@ export function CheckoutForm({
     );
   }
 
-  // Paso: Subir comprobante
-  if (step === "upload" && pedido) {
+  // Paso: Subir comprobante (aún NO hay pedido en la base de datos)
+  if (step === "upload" && draft) {
     return (
       <div
         ref={topRef}
@@ -251,36 +253,28 @@ export function CheckoutForm({
         <div>
           <h2 className="font-display text-xl sm:text-2xl">Sube tu comprobante</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Pedido{" "}
-            <span className="break-all font-mono font-semibold text-foreground">
-              {pedido.codigo}
-            </span>
+            Tu pedido se registrará solo cuando completes este paso. Si sales
+            ahora, no se crea ningún pedido.
           </p>
         </div>
-        {pedido.id ? (
-          <ComprobanteUpload
-            pedidoId={pedido.id}
-            onSuccess={({ pedido: p, comercio: c }) => {
-              pdfAutoDone.current = false;
-              clear();
-              setPedido({
-                ...p,
-                id: p.id || pedido.id,
-                comercio: c,
-              });
-              goToStep("summary");
-            }}
-          />
-        ) : (
-          <p className="text-sm text-destructive">
-            No se encontró el ID del pedido. Recarga e intenta de nuevo.
-          </p>
-        )}
+        <ComprobanteUpload
+          checkout={draft}
+          onSuccess={({ pedido: p, comercio: c }) => {
+            pdfAutoDone.current = false;
+            clear();
+            setDraft(null);
+            setPedido({
+              ...p,
+              comercio: c,
+            });
+            goToStep("summary");
+          }}
+        />
       </div>
     );
   }
 
-  async function onSubmit(values: CheckoutFormValues) {
+  function onSubmit(values: CheckoutFormValues) {
     setServerError(null);
 
     for (const i of items) {
@@ -309,42 +303,9 @@ export function CheckoutForm({
       return;
     }
 
-    try {
-      const res = await fetch("/api/pedidos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          data.error || data.message || "No se pudo crear el pedido"
-        );
-      }
-
-      const created = data.pedido;
-      setPedido({
-        id: created.id,
-        codigo: created.codigo,
-        nombre: created.nombre,
-        telefono: created.telefono,
-        correo: created.correo,
-        direccion: created.direccion || "",
-        notas: "",
-        banco: created.banco,
-        total: Number(created.total),
-        metodo_pago: created.metodo_pago,
-        created_at: created.created_at,
-        items: created.items || [],
-        comercio: data.comercio || comercio,
-      });
-      // Carrito se limpia al completar el pago (comprobante), no al iniciar
-      goToStep("upload");
-    } catch (err) {
-      setServerError(
-        err instanceof Error ? err.message : "Error al crear el pedido"
-      );
-    }
+    // Solo guarda en memoria: el registro real es al subir el comprobante
+    setDraft(parsed.data);
+    goToStep("upload");
   }
 
   return (

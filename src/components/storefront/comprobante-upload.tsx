@@ -4,16 +4,23 @@ import { useRef, useState } from "react";
 import { Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { MAX_COMPROBANTE_BYTES } from "@/lib/validations";
+import { MAX_COMPROBANTE_BYTES, checkoutSchema } from "@/lib/validations";
 import type { PedidoPdfData } from "@/lib/pedido-pdf";
+import type { z } from "zod";
 
 const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;
 
+type CheckoutPayload = z.infer<typeof checkoutSchema>;
+
 export function ComprobanteUpload({
+  checkout,
   pedidoId,
   onSuccess,
 }: {
-  pedidoId: string;
+  /** Flujo nuevo: crea el pedido al completar (con foto). */
+  checkout?: CheckoutPayload;
+  /** Re-subida en seguimiento (pedido ya existente). */
+  pedidoId?: string;
   onSuccess?: (data: {
     pedido: PedidoPdfData;
     comercio: PedidoPdfData["comercio"];
@@ -58,19 +65,31 @@ export function ComprobanteUpload({
       setError("Selecciona una foto de tu galería");
       return;
     }
+    if (!checkout && !pedidoId) {
+      setError("Faltan datos de la compra");
+      return;
+    }
 
     setLoading(true);
     try {
       const body = new FormData();
       body.append("comprobante", file);
-      const res = await fetch(`/api/pedidos/${pedidoId}/comprobante`, {
-        method: "POST",
-        body,
-      });
+
+      let res: Response;
+      if (checkout) {
+        body.append("checkout", JSON.stringify(checkout));
+        res = await fetch("/api/pedidos/completar", { method: "POST", body });
+      } else {
+        res = await fetch(`/api/pedidos/${pedidoId}/comprobante`, {
+          method: "POST",
+          body,
+        });
+      }
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
-          data.error || data.message || "No se pudo subir el comprobante"
+          data.error || data.message || "No se pudo completar la compra"
         );
       }
       onSuccess?.({
@@ -78,7 +97,7 @@ export function ComprobanteUpload({
         comercio: data.comercio,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al subir");
+      setError(err instanceof Error ? err.message : "Error al completar");
     } finally {
       setLoading(false);
     }
@@ -99,11 +118,6 @@ export function ComprobanteUpload({
           </span>
           <span className="text-xs">Solo fotos · JPG o PNG · máx. 5 MB</span>
         </button>
-        {/*
-          MIME/extensiones de foto (sin PDF ni capture):
-          iOS → Fotos
-          Android → Galería / Fotos (no Docs ni cámara forzada)
-        */}
         <input
           ref={inputRef}
           type="file"
@@ -131,7 +145,7 @@ export function ComprobanteUpload({
         disabled={loading || !file}
         className="h-12 w-full text-base"
       >
-        {loading ? "Completando compra…" : "Siguiente"}
+        {loading ? "Completando compra…" : "Completar compra"}
       </Button>
     </form>
   );

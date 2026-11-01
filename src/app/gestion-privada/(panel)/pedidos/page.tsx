@@ -17,7 +17,9 @@ const FILTROS: { key: Filtro; label: string }[] = [
 ];
 
 const ESTADOS_POR_FILTRO: Record<Exclude<Filtro, "TODOS">, EstadoPedido[]> = {
-  pendiente: ["COMPROBANTE_SUBIDO", "PENDIENTE_PAGO"],
+  // Solo pedidos completados por el cliente (con comprobante).
+  // PENDIENTE_PAGO = intento abandonado; no se muestra.
+  pendiente: ["COMPROBANTE_SUBIDO"],
   confirmado: ["CONFIRMADO", "ENVIADO", "ENTREGADO"],
   cancelado: ["CANCELADO", "RECHAZADO"],
 };
