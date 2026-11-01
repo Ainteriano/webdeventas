@@ -4,9 +4,11 @@
  */
 const { Client } = require("pg");
 
-const DATABASE_URL =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres:7tLDMJwrNaIXoprw@db.vlgfmiqzeepotipgszrm.supabase.co:5432/postgres";
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("Define DATABASE_URL en el entorno");
+  process.exit(1);
+}
 
 const MAPS_EMBED =
   "https://www.google.com/maps?q=15.513193,-88.0251794&z=17&output=embed";

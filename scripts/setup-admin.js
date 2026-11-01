@@ -2,16 +2,22 @@ const { Client } = require("pg");
 
 async function main() {
   const client = new Client({
-    connectionString:
-      process.env.DATABASE_URL ||
-      "postgresql://postgres:7tLDMJwrNaIXoprw@db.vlgfmiqzeepotipgszrm.supabase.co:5432/postgres",
+    connectionString: process.env.DATABASE_URL,
+
     ssl: { rejectUnauthorized: false },
   });
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error("Define DATABASE_URL en el entorno");
+  }
 
   await client.connect();
 
   const email = process.env.ADMIN_EMAIL || "admin@catalogo.local";
-  const password = process.env.ADMIN_PASSWORD || "AdminCatalogo2026!";
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error("Define ADMIN_PASSWORD en el entorno");
+  }
 
   const existing = await client.query(
     "select id from auth.users where email = $1",

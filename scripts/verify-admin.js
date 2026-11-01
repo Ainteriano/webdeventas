@@ -1,9 +1,11 @@
 const { Client } = require("pg");
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("Define DATABASE_URL en el entorno");
+  }
   const c = new Client({
-    connectionString:
-      "postgresql://postgres:7tLDMJwrNaIXoprw@db.vlgfmiqzeepotipgszrm.supabase.co:5432/postgres",
+    connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
   });
   await c.connect();
