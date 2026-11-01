@@ -13,7 +13,6 @@ import {
 import type { Categoria, Subcategoria } from "@/types/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +31,6 @@ import {
   crearSubcategoria,
   actualizarSubcategoria,
   eliminarSubcategoria,
-  toggleCategoriaActiva,
-  toggleSubcategoriaActiva,
 } from "./actions";
 
 type CatConSubs = Categoria & { subcategorias: Subcategoria[] };
@@ -218,13 +215,6 @@ export function CategoriasManager({
                         {cat.subcategorias.length}
                       </span>
                     </button>
-                    <Switch
-                      checked={cat.activa}
-                      disabled={pending}
-                      onCheckedChange={(v) =>
-                        run(() => toggleCategoriaActiva(cat.id, v))
-                      }
-                    />
                     <Button
                       type="button"
                       size="icon"
@@ -378,13 +368,6 @@ export function CategoriasManager({
                         <span className="min-w-0 flex-1 truncate text-sm">
                           {sub.nombre}
                         </span>
-                        <Switch
-                          checked={sub.activa}
-                          disabled={pending}
-                          onCheckedChange={(v) =>
-                            run(() => toggleSubcategoriaActiva(sub.id, v))
-                          }
-                        />
                         <Button
                           type="button"
                           size="icon"
