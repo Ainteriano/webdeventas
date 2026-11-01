@@ -142,10 +142,12 @@ export async function POST(
       nombre_snapshot: string;
       precio_snapshot: number;
       cantidad: number;
+      talla_snapshot?: string;
     }) => ({
       nombre: i.nombre_snapshot,
       precio: Number(i.precio_snapshot),
       cantidad: i.cantidad,
+      talla: i.talla_snapshot || "",
     })
   );
 

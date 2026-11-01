@@ -9,6 +9,7 @@ export interface CartItem {
   precio: number;
   imagen?: string | null;
   stock: number;
+  talla: string;
   cantidad: number;
 }
 
@@ -85,6 +86,7 @@ export const useCart = create<CartState>()(
                       ...i,
                       cantidad: nextQty,
                       stock,
+                      talla: item.talla || i.talla || "",
                       precio: Number(item.precio) || i.precio,
                       nombre: item.nombre || i.nombre,
                       imagen: item.imagen ?? i.imagen,
@@ -99,6 +101,7 @@ export const useCart = create<CartState>()(
               {
                 ...item,
                 precio: Number(item.precio) || 0,
+                talla: item.talla || "",
                 stock,
                 cantidad: addQty,
               },
@@ -166,7 +169,7 @@ export const useCart = create<CartState>()(
     }),
     {
       name: "catalogo-cart",
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         const state = (persisted || {}) as { items?: CartItem[] };
         const items = Array.isArray(state.items)
@@ -179,6 +182,7 @@ export const useCart = create<CartState>()(
                   nombre: String(i?.nombre || ""),
                   precio: Number(i?.precio) || 0,
                   imagen: i?.imagen ?? null,
+                  talla: String(i?.talla || ""),
                   stock,
                   cantidad,
                 } satisfies CartItem;

@@ -11,6 +11,7 @@ interface AddToCartButtonProps {
   precio: number;
   imagen?: string | null;
   stock: number;
+  talla: string;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ export function AddToCartButton({
   precio,
   imagen,
   stock,
+  talla,
   className,
 }: AddToCartButtonProps) {
   const maxStock = Math.max(0, Math.floor(Number(stock) || 0));
@@ -53,6 +55,7 @@ export function AddToCartButton({
         precio,
         imagen,
         stock: maxStock,
+        talla: talla || "",
       },
       cantidad
     );

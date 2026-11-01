@@ -91,7 +91,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Zapato oxford de cuero sintético para hombre. Ideal para oficina y uso diario. Outlet San Pedro Sula.",
       precio: 1290,
-      stock: 18,
+      stock: 1,
+      talla: "42",
       categoria_id: IDS.hombre,
       subcategoria_id: null,
       imagen:
@@ -104,7 +105,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Tenis deportivos livianos con suela antideslizante. Perfectos para caminar o entrenamiento.",
       precio: 990,
-      stock: 25,
+      stock: 1,
+      talla: "41",
       categoria_id: IDS.hombre,
       subcategoria_id: null,
       imagen:
@@ -117,7 +119,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Tacón medio elegante para ocasiones especiales. Comodidad y estilo American Shoes.",
       precio: 1450,
-      stock: 14,
+      stock: 1,
+      talla: "37",
       categoria_id: IDS.mujer,
       subcategoria_id: null,
       imagen:
@@ -130,7 +133,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Sandalia plana cómoda para el día a día. Disponible en varios tonos.",
       precio: 650,
-      stock: 30,
+      stock: 1,
+      talla: "38",
       categoria_id: IDS.mujer,
       subcategoria_id: null,
       imagen:
@@ -143,7 +147,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Tenis resistentes para niño, ideales para la escuela y juegos. Suela flexible.",
       precio: 580,
-      stock: 22,
+      stock: 1,
+      talla: "32",
       categoria_id: IDS.infantil,
       subcategoria_id: IDS.nino,
       imagen:
@@ -156,7 +161,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Zapato formal para niño, perfecto para eventos y uniforme escolar.",
       precio: 720,
-      stock: 16,
+      stock: 1,
+      talla: "33",
       categoria_id: IDS.infantil,
       subcategoria_id: IDS.nino,
       imagen:
@@ -169,7 +175,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Ballerinas cómodas para niña. Diseño suave y duradero para el día a día.",
       precio: 540,
-      stock: 20,
+      stock: 1,
+      talla: "30",
       categoria_id: IDS.infantil,
       subcategoria_id: IDS.nina,
       imagen:
@@ -182,7 +189,8 @@ Transferencia en Lempiras (L).`,
       descripcion:
         "Sandalia liviana para niña, ideal para clima cálido de San Pedro Sula.",
       precio: 480,
-      stock: 24,
+      stock: 1,
+      talla: "31",
       categoria_id: IDS.infantil,
       subcategoria_id: IDS.nina,
       imagen:
@@ -194,9 +202,9 @@ Transferencia en Lempiras (L).`,
   for (const p of productos) {
     await client.query(
       `insert into productos (
-        id, nombre, slug, descripcion, precio, stock,
+        id, nombre, slug, descripcion, precio, stock, talla,
         categoria_id, subcategoria_id, disponible, activo
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,true,true)`,
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,true)`,
       [
         p.id,
         p.nombre,
@@ -204,6 +212,7 @@ Transferencia en Lempiras (L).`,
         p.descripcion,
         p.precio,
         p.stock,
+        p.talla,
         p.categoria_id,
         p.subcategoria_id,
       ]

@@ -16,7 +16,7 @@ type PedidoSeguimiento = {
   motivo_rechazo: string | null;
   created_at: string;
   payment_url: string | null;
-  items: { nombre: string; precio: number; cantidad: number }[];
+  items: { nombre: string; precio: number; cantidad: number; talla?: string }[];
 };
 
 export function SeguimientoDetalle({ codigo }: { codigo: string }) {
@@ -105,7 +105,8 @@ export function SeguimientoDetalle({ codigo }: { codigo: string }) {
           {pedido.items.map((item, i) => (
             <li key={i} className="flex justify-between gap-4">
               <span>
-                {item.nombre} × {item.cantidad}
+                {item.nombre}
+                {item.talla ? ` · Talla ${item.talla}` : ""} × {item.cantidad}
               </span>
               <span>{formatPrice(item.precio * item.cantidad)}</span>
             </li>

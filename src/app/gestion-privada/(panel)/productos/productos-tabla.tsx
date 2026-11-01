@@ -340,6 +340,7 @@ export function ProductosTabla({
                       {p.nombre}
                     </Link>
                     <p className="text-xs text-muted-foreground">
+                      {p.talla ? `Talla ${p.talla} · ` : ""}
                       {p.categorias?.nombre || "—"}
                     </p>
                   </div>
@@ -447,6 +448,7 @@ export function ProductosTabla({
                 />
               </th>
               <th className="p-3 font-medium">Producto</th>
+              <th className="p-3 font-medium">Talla</th>
               <th className="p-3 font-medium">Categoría</th>
               <th className="p-3 font-medium">Precio</th>
               <th className="p-3 font-medium">Stock</th>
@@ -488,6 +490,9 @@ export function ProductosTabla({
                         {p.nombre}
                       </span>
                     </Link>
+                  </td>
+                  <td className="p-3 font-medium tabular-nums">
+                    {p.talla || "—"}
                   </td>
                   <td className="p-3 text-muted-foreground">
                     <div>{p.categorias?.nombre || "—"}</div>
@@ -581,7 +586,7 @@ export function ProductosTabla({
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="p-10 text-center text-muted-foreground"
                 >
                   Sin resultados

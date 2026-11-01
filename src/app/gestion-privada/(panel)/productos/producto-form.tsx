@@ -102,7 +102,8 @@ export function ProductoForm({
       slug: producto?.slug || "",
       descripcion: producto?.descripcion || "",
       precio: producto?.precio ?? 0,
-      stock: producto?.stock ?? 0,
+      stock: producto?.stock ?? 1,
+      talla: producto?.talla || "",
       categoria_id: producto?.categoria_id || categorias[0]?.id || "",
       subcategoria_id: producto?.subcategoria_id || null,
       disponible: producto?.disponible ?? true,
@@ -429,7 +430,18 @@ export function ProductoForm({
           )}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="talla">Talla</Label>
+            <Input
+              id="talla"
+              placeholder="Ej. 40"
+              {...register("talla")}
+            />
+            {errors.talla && (
+              <p className="text-sm text-destructive">{errors.talla.message}</p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="precio">Precio (L)</Label>
             <Input

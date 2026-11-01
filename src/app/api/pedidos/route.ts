@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const ids = data.items.map((i) => i.producto_id);
   const { data: productos, error: prodErr } = await admin
     .from("productos")
-    .select("id, nombre, precio, stock, disponible, activo")
+    .select("id, nombre, precio, stock, talla, disponible, activo")
     .in("id", ids);
 
   if (prodErr || !productos) {
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     nombre_snapshot: string;
     precio_snapshot: number;
     cantidad: number;
+    talla_snapshot: string;
   }[] = [];
   let total = 0;
 
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
       nombre_snapshot: p.nombre,
       precio_snapshot: precio,
       cantidad: item.cantidad,
+      talla_snapshot: (p as { talla?: string }).talla || "",
     });
     total += precio * item.cantidad;
   }
@@ -192,6 +194,7 @@ export async function POST(request: Request) {
         nombre: l.nombre_snapshot,
         precio: l.precio_snapshot,
         cantidad: l.cantidad,
+        talla: l.talla_snapshot,
       })),
     },
     comercio: {

@@ -161,7 +161,8 @@ export function CheckoutForm({
             {pedido.items.map((item, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span>
-                  {item.nombre} × {item.cantidad}
+                  {item.nombre}
+                  {item.talla ? ` · Talla ${item.talla}` : ""} × {item.cantidad}
                 </span>
                 <span>{formatPrice(item.precio * item.cantidad)}</span>
               </li>
@@ -449,7 +450,8 @@ export function CheckoutForm({
           {items.map((i) => (
             <li key={i.producto_id} className="flex justify-between gap-2">
               <span className="text-muted-foreground">
-                {i.nombre} × {i.cantidad}
+                {i.nombre}
+                {i.talla ? ` · T${i.talla}` : ""} × {i.cantidad}
               </span>
               <span className="tabular-nums">
                 {formatPrice(i.precio * i.cantidad)}

@@ -43,6 +43,7 @@ export interface Producto {
   descripcion: string;
   precio: number;
   stock: number;
+  talla: string;
   categoria_id: string;
   subcategoria_id: string | null;
   disponible: boolean;
@@ -82,6 +83,7 @@ export interface PedidoItem {
   nombre_snapshot: string;
   precio_snapshot: number;
   cantidad: number;
+  talla_snapshot?: string;
 }
 
 export interface ConfiguracionSitio {

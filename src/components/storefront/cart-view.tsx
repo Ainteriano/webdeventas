@@ -53,7 +53,7 @@ export function CartView() {
                   {formatPrice(item.precio)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Máx. {maxStock}
+                  {item.talla ? `Talla ${item.talla} · ` : ""}Máx. {maxStock}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <div className="flex items-center rounded-md border">

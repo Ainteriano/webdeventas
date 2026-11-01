@@ -50,6 +50,9 @@ export function ProductCard({ producto }: { producto: Producto }) {
         >
           {producto.nombre}
         </h3>
+        {producto.talla ? (
+          <p className="text-xs text-muted-foreground">Talla {producto.talla}</p>
+        ) : null}
         {disponible ? (
           <p className="text-base font-semibold text-primary">
             {formatPrice(producto.precio)}

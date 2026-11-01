@@ -5,6 +5,7 @@ export type PedidoPdfItem = {
   nombre: string;
   precio: number;
   cantidad: number;
+  talla?: string;
 };
 
 export type PedidoPdfData = {
@@ -103,7 +104,8 @@ function buildDoc(data: PedidoPdfData) {
   doc.setFont("helvetica", "normal");
 
   for (const item of data.items) {
-    const linea = `${item.nombre}  × ${item.cantidad}   ${formatPrice(
+    const tallaTxt = item.talla ? ` · Talla ${item.talla}` : "";
+    const linea = `${item.nombre}${tallaTxt}  × ${item.cantidad}   ${formatPrice(
       item.precio * item.cantidad
     )}`;
     const wrapped = doc.splitTextToSize(linea, 170);

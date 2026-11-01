@@ -26,6 +26,11 @@ export const productoSchema = z.object({
   descripcion: z.string().max(5000).default(""),
   precio: z.coerce.number().min(0, "Precio inválido"),
   stock: z.coerce.number().int().min(0, "Stock inválido"),
+  talla: z
+    .string()
+    .trim()
+    .min(1, "La talla es obligatoria")
+    .max(30, "Talla demasiado larga"),
   categoria_id: z.string().uuid("Categoría inválida"),
   subcategoria_id: z.string().uuid().nullable().optional(),
   disponible: z.boolean().default(true),

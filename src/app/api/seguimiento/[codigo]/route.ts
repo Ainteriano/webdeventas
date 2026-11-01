@@ -40,7 +40,7 @@ export async function GET(
 
   const { data: items } = await admin
     .from("pedido_items")
-    .select("nombre_snapshot, precio_snapshot, cantidad")
+    .select("nombre_snapshot, precio_snapshot, cantidad, talla_snapshot")
     .eq("pedido_id", pedido.id);
 
   return NextResponse.json({
@@ -59,6 +59,7 @@ export async function GET(
         nombre: i.nombre_snapshot,
         precio: Number(i.precio_snapshot),
         cantidad: i.cantidad,
+        talla: i.talla_snapshot || "",
       })),
     },
   });

@@ -95,6 +95,13 @@ export default async function ProductoPage({ params }: Props) {
             </p>
           )}
 
+          {producto.talla ? (
+            <p className="mt-3 text-base">
+              <span className="text-muted-foreground">Talla </span>
+              <span className="font-semibold">{producto.talla}</span>
+            </p>
+          ) : null}
+
           {producto.descripcion && (
             <div className="mt-6 whitespace-pre-line text-sm text-muted-foreground">
               {producto.descripcion}
@@ -109,6 +116,7 @@ export default async function ProductoPage({ params }: Props) {
                 precio={Number(producto.precio)}
                 imagen={imagen}
                 stock={stock}
+                talla={producto.talla || ""}
               />
             ) : (
               <p className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">

@@ -145,6 +145,7 @@ export default async function PedidoDetallePage({
               <div>
                 <p className="font-medium">{item.nombre_snapshot}</p>
                 <p className="text-sm text-muted-foreground">
+                  {item.talla_snapshot ? `Talla ${item.talla_snapshot} · ` : ""}
                   {item.cantidad} × {formatPrice(item.precio_snapshot)}
                 </p>
               </div>
