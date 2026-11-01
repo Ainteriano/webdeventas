@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, getAdminPath } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
 import {
@@ -172,19 +173,20 @@ export async function subirImagenProducto(productoId: string, formData: FormData
   const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (!allowed.includes(file.type)) return { error: "Formato no permitido" };
 
-  const supabase = createClient();
+  // Storage + DB con service role para evitar fallos de RLS en Storage
+  const admin = createAdminClient();
   const ext = file.type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
   const path = `${productoId}/${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const { error: upErr } = await supabase.storage
+  const { error: upErr } = await admin.storage
     .from("productos")
     .upload(path, buffer, { contentType: file.type, upsert: false });
   if (upErr) return { error: upErr.message };
 
-  const { data: pub } = supabase.storage.from("productos").getPublicUrl(path);
+  const { data: pub } = admin.storage.from("productos").getPublicUrl(path);
 
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("producto_imagenes")
     .select("id")
     .eq("producto_id", productoId);
@@ -192,7 +194,7 @@ export async function subirImagenProducto(productoId: string, formData: FormData
   const esPrincipal = !existing?.length;
   const orden = existing?.length || 0;
 
-  const { error: dbErr } = await supabase.from("producto_imagenes").insert({
+  const { error: dbErr } = await admin.from("producto_imagenes").insert({
     producto_id: productoId,
     url: pub.publicUrl,
     orden,
@@ -286,4 +288,53 @@ export async function reordenarImagenes(
   }
   revalidateProductos();
   return { ok: true };
+}
+
+/** Reemplaza una foto existente (útil si se subió equivocada). */
+export async function reemplazarImagenProducto(
+  imagenId: string,
+  formData: FormData
+) {
+  await assertAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "Archivo requerido" };
+  if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5 MB" };
+  const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!allowed.includes(file.type)) return { error: "Formato no permitido" };
+
+  const admin = createAdminClient();
+  const { data: img } = await admin
+    .from("producto_imagenes")
+    .select("*")
+    .eq("id", imagenId)
+    .maybeSingle();
+  if (!img) return { error: "Imagen no encontrada" };
+
+  const ext = file.type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+  const path = `${img.producto_id}/${Date.now()}.${ext}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error: upErr } = await admin.storage
+    .from("productos")
+    .upload(path, buffer, { contentType: file.type, upsert: false });
+  if (upErr) return { error: upErr.message };
+
+  const { data: pub } = admin.storage.from("productos").getPublicUrl(path);
+
+  const { error: dbErr } = await admin
+    .from("producto_imagenes")
+    .update({ url: pub.publicUrl })
+    .eq("id", imagenId);
+  if (dbErr) return { error: dbErr.message };
+
+  const marker = "/storage/v1/object/public/productos/";
+  const idx = img.url.indexOf(marker);
+  if (idx >= 0) {
+    await admin.storage
+      .from("productos")
+      .remove([img.url.slice(idx + marker.length)]);
+  }
+
+  revalidateProductos();
+  return { ok: true, url: pub.publicUrl };
 }

@@ -1,10 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Producto } from "@/types/database";
 import { formatPrice } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { imagenPrincipal } from "@/lib/data-client";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "@/components/storefront/safe-image";
 
 export function ProductCard({ producto }: { producto: Producto }) {
   const img = imagenPrincipal(producto);
@@ -20,7 +20,7 @@ export function ProductCard({ producto }: { producto: Producto }) {
     >
       <div className="relative aspect-square overflow-hidden bg-muted">
         {img ? (
-          <Image
+          <SafeImage
             src={img}
             alt={producto.nombre}
             fill

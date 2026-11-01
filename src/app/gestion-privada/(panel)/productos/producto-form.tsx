@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,6 +34,7 @@ import {
   crearProducto,
   eliminarImagenProducto,
   eliminarProducto,
+  reemplazarImagenProducto,
   reordenarImagenes,
   setImagenPrincipal,
   subirImagenProducto,
@@ -374,71 +374,124 @@ export function ProductoForm({
                 key={img.id}
                 className="relative overflow-hidden rounded-md border"
               >
-                <div className="relative aspect-square">
-                  <Image
+                <div className="relative aspect-square bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={img.url}
                     alt=""
-                    fill
-                    className="object-cover"
-                    sizes="150px"
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
                   />
                 </div>
-                <div className="flex flex-wrap gap-1 p-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={img.es_principal ? "default" : "outline"}
-                    className="flex-1 text-xs"
-                    onClick={() =>
-                      startTransition(async () => {
-                        await setImagenPrincipal(img.id);
-                        setImgs((prev) =>
-                          prev.map((i) => ({
-                            ...i,
-                            es_principal: i.id === img.id,
-                          }))
-                        );
-                      })
-                    }
-                  >
-                    Principal
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={idx === 0 || pending}
-                    onClick={() => moveImage(idx, -1)}
-                  >
-                    ↑
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={idx === imgs.length - 1 || pending}
-                    onClick={() => moveImage(idx, 1)}
-                  >
-                    ↓
-                  </Button>
+                <div className="space-y-1 p-1">
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={img.es_principal ? "default" : "outline"}
+                      className="flex-1 text-xs"
+                      disabled={pending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          await setImagenPrincipal(img.id);
+                          setImgs((prev) =>
+                            prev.map((i) => ({
+                              ...i,
+                              es_principal: i.id === img.id,
+                            }))
+                          );
+                          router.refresh();
+                        })
+                      }
+                    >
+                      Principal
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={idx === 0 || pending}
+                      onClick={() => moveImage(idx, -1)}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={idx === imgs.length - 1 || pending}
+                      onClick={() => moveImage(idx, 1)}
+                    >
+                      ↓
+                    </Button>
+                  </div>
+                  <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed px-2 py-1.5 text-xs hover:bg-muted">
+                    Cambiar foto
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={pending}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        startTransition(async () => {
+                          setError(null);
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          const res = await reemplazarImagenProducto(
+                            img.id,
+                            fd
+                          );
+                          if (res.error) {
+                            setError(res.error);
+                            return;
+                          }
+                          if (res.url) {
+                            setImgs((prev) =>
+                              prev.map((i) =>
+                                i.id === img.id ? { ...i, url: res.url! } : i
+                              )
+                            );
+                          }
+                          router.refresh();
+                        });
+                      }}
+                    />
+                  </label>
                   <Button
                     type="button"
                     size="sm"
                     variant="destructive"
+                    className="w-full text-xs"
+                    disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
-                        await eliminarImagenProducto(img.id);
+                        const res = await eliminarImagenProducto(img.id);
+                        if (res.error) {
+                          setError(res.error);
+                          return;
+                        }
                         setImgs((prev) =>
                           prev.filter((i) => i.id !== img.id)
                         );
+                        router.refresh();
                       })
                     }
                   >
-                    ×
+                    Eliminar foto
                   </Button>
                 </div>
               </div>
             ))}
+            {imgs.length === 0 && (
+              <p className="col-span-full text-sm text-muted-foreground">
+                Aún no hay fotos. Usa el selector de arriba para agregar.
+              </p>
+            )}
           </div>
         )}
       </div>

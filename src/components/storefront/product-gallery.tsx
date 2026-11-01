@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { ProductoImagen } from "@/types/database";
+import { SafeImage } from "@/components/storefront/safe-image";
 
 export function ProductGallery({
   imagenes,
@@ -30,7 +30,7 @@ export function ProductGallery({
   return (
     <div className="space-y-3">
       <div className="relative aspect-square overflow-hidden rounded-xl bg-muted">
-        <Image
+        <SafeImage
           key={current.id}
           src={current.url}
           alt={alt}
@@ -55,7 +55,7 @@ export function ProductGallery({
                   : "border-transparent opacity-70 hover:opacity-100"
               )}
             >
-              <Image
+              <SafeImage
                 src={img.url}
                 alt=""
                 fill

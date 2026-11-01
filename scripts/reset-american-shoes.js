@@ -95,7 +95,7 @@ Transferencia en Lempiras (L).`,
       categoria_id: IDS.hombre,
       subcategoria_id: null,
       imagen:
-        "https://images.unsplash.com/photo-1614252231338-cb0b195750f0?w=800",
+        "https://images.unsplash.com/photo-1533867617858-e7b97e060509?w=800",
     },
     {
       id: "d3000000-0000-4000-8000-000000000002",
@@ -147,7 +147,7 @@ Transferencia en Lempiras (L).`,
       categoria_id: IDS.infantil,
       subcategoria_id: IDS.nino,
       imagen:
-        "https://images.unsplash.com/photo-1514989940723-808ba2819160?w=800",
+        "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800",
     },
     {
       id: "d3000000-0000-4000-8000-000000000006",
