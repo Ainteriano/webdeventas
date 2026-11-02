@@ -12,34 +12,59 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { VentasChart } from "@/components/admin/ventas-chart";
 import type { Pedido, Producto } from "@/types/database";
 
 export default async function AdminDashboardPage() {
   const supabase = createClient();
   const adminPath = getAdminPath();
 
-  const [{ data: porConfirmar }, { data: sinStock }] = await Promise.all([
-    supabase
-      .from("pedidos")
-      .select("id, codigo, nombre, total, created_at, estado")
-      .eq("estado", "COMPROBANTE_SUBIDO")
-      .order("created_at", { ascending: false })
-      .limit(10),
-    supabase
-      .from("productos")
-      .select("id, nombre, stock, precio, activo")
-      .eq("activo", true)
-      .lte("stock", 0)
-      .order("nombre")
-      .limit(10),
-  ]);
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - 12);
+  desde.setDate(1);
+  desde.setHours(0, 0, 0, 0);
+
+  const [{ data: porConfirmar }, { data: sinStock }, { data: ventasRaw }] =
+    await Promise.all([
+      supabase
+        .from("pedidos")
+        .select("id, codigo, nombre, total, created_at, estado")
+        .eq("estado", "COMPROBANTE_SUBIDO")
+        .order("created_at", { ascending: false })
+        .limit(10),
+      supabase
+        .from("productos")
+        .select("id, nombre, stock, precio, activo")
+        .eq("activo", true)
+        .lte("stock", 0)
+        .order("nombre")
+        .limit(10),
+      supabase
+        .from("pedidos")
+        .select("created_at, total, estado")
+        .in("estado", [
+          "COMPROBANTE_SUBIDO",
+          "CONFIRMADO",
+          "ENVIADO",
+          "ENTREGADO",
+        ])
+        .gte("created_at", desde.toISOString())
+        .order("created_at", { ascending: true }),
+    ]);
 
   const pedidosPendientes = (porConfirmar || []) as Pedido[];
   const productosSinStock = (sinStock || []) as Producto[];
+  const puntosVentas = (ventasRaw || []).map((p) => ({
+    created_at: p.created_at as string,
+    total: Number(p.total) || 0,
+    estado: p.estado as string,
+  }));
 
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Inicio</h1>
+
+      <VentasChart puntos={puntosVentas} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
