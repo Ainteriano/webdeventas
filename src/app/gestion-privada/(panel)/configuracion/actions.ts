@@ -11,7 +11,6 @@ const ajustesSchema = z.object({
   direccion: z.string().max(500),
   maps_embed_url: z.string().max(2000),
   horarios: z.string().max(500),
-  link_pago_activo: z.boolean(),
 });
 
 export async function actualizarConfiguracion(formData: FormData) {
@@ -24,9 +23,6 @@ export async function actualizarConfiguracion(formData: FormData) {
     direccion: formData.get("direccion") || "",
     maps_embed_url: formData.get("maps_embed_url") || "",
     horarios: formData.get("horarios") || "",
-    link_pago_activo:
-      formData.get("link_pago_activo") === "on" ||
-      formData.get("link_pago_activo") === "true",
   });
 
   if (!parsed.success) {
@@ -35,6 +31,7 @@ export async function actualizarConfiguracion(formData: FormData) {
 
   const data = parsed.data;
   const supabase = createClient();
+  // link_pago_activo no se edita aquí; se controla en código / DB.
   const { error } = await supabase
     .from("configuracion_sitio")
     .update({
@@ -43,7 +40,6 @@ export async function actualizarConfiguracion(formData: FormData) {
       direccion: data.direccion,
       maps_embed_url: data.maps_embed_url,
       horarios: data.horarios,
-      link_pago_activo: data.link_pago_activo,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1);

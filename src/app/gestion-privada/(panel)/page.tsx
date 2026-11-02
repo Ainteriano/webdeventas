@@ -18,15 +18,7 @@ export default async function AdminDashboardPage() {
   const supabase = createClient();
   const adminPath = getAdminPath();
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const [
-    { data: porConfirmar },
-    { data: sinStock },
-    { data: ventasMes },
-  ] = await Promise.all([
+  const [{ data: porConfirmar }, { data: sinStock }] = await Promise.all([
     supabase
       .from("pedidos")
       .select("id, codigo, nombre, total, created_at, estado")
@@ -40,24 +32,16 @@ export default async function AdminDashboardPage() {
       .lte("stock", 0)
       .order("nombre")
       .limit(10),
-    supabase
-      .from("pedidos")
-      .select("total, estado, created_at")
-      .in("estado", ["CONFIRMADO", "ENVIADO", "ENTREGADO"])
-      .gte("created_at", startOfMonth.toISOString()),
   ]);
 
   const pedidosPendientes = (porConfirmar || []) as Pedido[];
   const productosSinStock = (sinStock || []) as Producto[];
-  const ventas = (ventasMes || []) as Pick<Pedido, "total">[];
-  const totalVentasMes = ventas.reduce((sum, p) => sum + Number(p.total), 0);
-  const cantidadVentasMes = ventas.length;
 
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Inicio</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Por confirmar</CardDescription>
@@ -83,20 +67,6 @@ export default async function AdminDashboardPage() {
           <CardContent>
             <p className="text-sm text-muted-foreground">
               Productos activos con stock 0
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="sm:col-span-2 lg:col-span-1">
-          <CardHeader className="pb-2">
-            <CardDescription>Ventas del mes</CardDescription>
-            <CardTitle className="text-3xl">
-              {formatPrice(totalVentasMes)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {cantidadVentasMes} pedido
-              {cantidadVentasMes === 1 ? "" : "s"} confirmado/enviado/entregado
             </p>
           </CardContent>
         </Card>

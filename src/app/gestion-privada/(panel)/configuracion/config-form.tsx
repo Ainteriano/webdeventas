@@ -6,50 +6,124 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { actualizarConfiguracion } from "./actions";
+
+type Fields = {
+  whatsapp: string;
+  mensaje_whatsapp: string;
+  direccion: string;
+  maps_embed_url: string;
+  horarios: string;
+};
+
+function fromConfig(config: ConfiguracionSitio): Fields {
+  return {
+    whatsapp: config.whatsapp || "",
+    mensaje_whatsapp: config.mensaje_whatsapp || "",
+    direccion: config.direccion || "",
+    maps_embed_url: config.maps_embed_url || "",
+    horarios: config.horarios || "",
+  };
+}
 
 export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
-  const [linkPago, setLinkPago] = useState(config.link_pago_activo);
+  const [saved, setSaved] = useState<Fields>(() => fromConfig(config));
+  const [draft, setDraft] = useState<Fields>(() => fromConfig(config));
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function setField<K extends keyof Fields>(key: K, value: Fields[K]) {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function startEdit() {
     setError(null);
     setOk(false);
-    const fd = new FormData(e.currentTarget);
-    fd.set("link_pago_activo", linkPago ? "true" : "false");
+    setDraft(saved);
+    setEditing(true);
+  }
+
+  function discard() {
+    setError(null);
+    setOk(false);
+    setDraft(saved);
+    setEditing(false);
+  }
+
+  function save() {
+    setError(null);
+    setOk(false);
+    const fd = new FormData();
+    fd.set("whatsapp", draft.whatsapp);
+    fd.set("mensaje_whatsapp", draft.mensaje_whatsapp);
+    fd.set("direccion", draft.direccion);
+    fd.set("maps_embed_url", draft.maps_embed_url);
+    fd.set("horarios", draft.horarios);
 
     startTransition(async () => {
       const res = await actualizarConfiguracion(fd);
-      if (res?.error) setError(res.error);
-      else setOk(true);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      setSaved(draft);
+      setEditing(false);
+      setOk(true);
     });
   }
 
+  const values = editing ? draft : saved;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <div className="space-y-5">
       {error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
-      {ok && (
+      {ok && !editing && (
         <p className="rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-800">
-          Guardado
+          Cambios guardados
         </p>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {editing
+            ? "Editando ajustes"
+            : "Solo visualización. Activa editar para modificar."}
+        </p>
+        {!editing ? (
+          <Button type="button" onClick={startEdit}>
+            Editar
+          </Button>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={save} disabled={pending}>
+              {pending ? "Guardando…" : "Guardar cambios"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={discard}
+              disabled={pending}
+            >
+              Descartar cambios
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="whatsapp">WhatsApp</Label>
         <Input
           id="whatsapp"
-          name="whatsapp"
-          required
-          placeholder="5215512345678"
-          defaultValue={config.whatsapp}
+          value={values.whatsapp}
+          readOnly={!editing}
+          disabled={!editing}
+          onChange={(e) => setField("whatsapp", e.target.value)}
         />
       </div>
 
@@ -57,9 +131,11 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         <Label htmlFor="mensaje_whatsapp">Mensaje WhatsApp</Label>
         <Textarea
           id="mensaje_whatsapp"
-          name="mensaje_whatsapp"
           rows={2}
-          defaultValue={config.mensaje_whatsapp}
+          value={values.mensaje_whatsapp}
+          readOnly={!editing}
+          disabled={!editing}
+          onChange={(e) => setField("mensaje_whatsapp", e.target.value)}
         />
       </div>
 
@@ -67,9 +143,11 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         <Label htmlFor="direccion">Dirección</Label>
         <Textarea
           id="direccion"
-          name="direccion"
           rows={2}
-          defaultValue={config.direccion}
+          value={values.direccion}
+          readOnly={!editing}
+          disabled={!editing}
+          onChange={(e) => setField("direccion", e.target.value)}
         />
       </div>
 
@@ -77,10 +155,11 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         <Label htmlFor="maps_embed_url">URL del mapa</Label>
         <Textarea
           id="maps_embed_url"
-          name="maps_embed_url"
           rows={2}
-          placeholder="https://www.google.com/maps/embed?…"
-          defaultValue={config.maps_embed_url}
+          value={values.maps_embed_url}
+          readOnly={!editing}
+          disabled={!editing}
+          onChange={(e) => setField("maps_embed_url", e.target.value)}
         />
       </div>
 
@@ -88,24 +167,13 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         <Label htmlFor="horarios">Horarios</Label>
         <Textarea
           id="horarios"
-          name="horarios"
           rows={3}
-          defaultValue={config.horarios}
+          value={values.horarios}
+          readOnly={!editing}
+          disabled={!editing}
+          onChange={(e) => setField("horarios", e.target.value)}
         />
       </div>
-
-      <div className="flex items-center justify-between rounded-md border px-3 py-3">
-        <Label htmlFor="link_pago">Link de pago</Label>
-        <Switch
-          id="link_pago"
-          checked={linkPago}
-          onCheckedChange={setLinkPago}
-        />
-      </div>
-
-      <Button type="submit" disabled={pending}>
-        {pending ? "Guardando…" : "Guardar"}
-      </Button>
-    </form>
+    </div>
   );
 }

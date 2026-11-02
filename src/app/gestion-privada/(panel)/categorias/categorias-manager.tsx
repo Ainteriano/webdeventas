@@ -43,7 +43,7 @@ export function CategoriasManager({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(categorias.map((c) => [c.id, true]))
+    Object.fromEntries(categorias.map((c) => [c.id, false]))
   );
   const [editingCat, setEditingCat] = useState<string | null>(null);
   const [editingSub, setEditingSub] = useState<string | null>(null);
