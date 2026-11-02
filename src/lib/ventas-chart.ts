@@ -4,8 +4,6 @@ export type VentaPunto = {
   estado: string;
 };
 
-export type PeriodoVentas = "dias" | "semanas" | "meses";
-
 export type BarraVentas = {
   key: string;
   label: string;
@@ -20,36 +18,40 @@ const ESTADOS_VENTA = new Set([
   "ENTREGADO",
 ]);
 
-function startOfDay(d: Date) {
+export function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
 
-function addDays(d: Date, n: number) {
+export function endOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+export function addDays(d: Date, n: number) {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
 }
 
-function startOfWeek(d: Date) {
-  const x = startOfDay(d);
-  const day = x.getDay(); // 0 domingo
-  const diff = day === 0 ? -6 : 1 - day; // lunes como inicio
-  return addDays(x, diff);
+export function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+export function daysBetween(from: Date, to: Date) {
+  const a = startOfDay(from).getTime();
+  const b = startOfDay(to).getTime();
+  return Math.round((b - a) / 86_400_000) + 1;
 }
 
 function fmtDia(d: Date) {
   return d.toLocaleDateString("es-HN", { day: "numeric", month: "short" });
-}
-
-function fmtSemana(d: Date) {
-  const fin = addDays(d, 6);
-  return `${d.getDate()}/${d.getMonth() + 1}–${fin.getDate()}/${fin.getMonth() + 1}`;
 }
 
 function fmtMes(d: Date) {
@@ -60,28 +62,54 @@ function keyDia(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function keySemana(d: Date) {
-  const s = startOfWeek(d);
-  return keyDia(s);
-}
-
 function keyMes(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Agrupa ventas confirmadas / en proceso por período. */
-export function agruparVentas(
+export function formatRangoLabel(from: Date, to: Date) {
+  if (sameDay(from, to)) {
+    return from.toLocaleDateString("es-HN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+  const a = from.toLocaleDateString("es-HN", {
+    day: "numeric",
+    month: "short",
+  });
+  const b = to.toLocaleDateString("es-HN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `${a} – ${b}`;
+}
+
+/** Agrupa ventas en el rango [from, to] (inclusive). */
+export function agruparVentasRango(
   puntos: VentaPunto[],
-  periodo: PeriodoVentas,
-  ahora = new Date()
+  from: Date,
+  to: Date
 ): BarraVentas[] {
-  const ventas = puntos.filter((p) => ESTADOS_VENTA.has(p.estado));
+  const inicio = startOfDay(from);
+  const fin = endOfDay(to);
+  if (inicio > fin) return [];
+
+  const ventas = puntos.filter((p) => {
+    if (!ESTADOS_VENTA.has(p.estado)) return false;
+    const d = new Date(p.created_at);
+    return d >= inicio && d <= fin;
+  });
+
+  const span = daysBetween(inicio, fin);
   const buckets: BarraVentas[] = [];
 
-  if (periodo === "dias") {
-    const hoy = startOfDay(ahora);
-    for (let i = 13; i >= 0; i--) {
-      const d = addDays(hoy, -i);
+  // 1 día o hasta ~45 días → una barra por día
+  // más de 45 → una barra por mes (rangos largos)
+  if (span <= 45) {
+    for (let i = 0; i < span; i++) {
+      const d = addDays(inicio, i);
       buckets.push({
         key: keyDia(d),
         label: fmtDia(d),
@@ -89,44 +117,51 @@ export function agruparVentas(
         cantidad: 0,
       });
     }
-  } else if (periodo === "semanas") {
-    const esta = startOfWeek(ahora);
-    for (let i = 7; i >= 0; i--) {
-      const d = addDays(esta, -i * 7);
-      buckets.push({
-        key: keySemana(d),
-        label: fmtSemana(d),
-        total: 0,
-        cantidad: 0,
-      });
+    const index = new Map(buckets.map((b, i) => [b.key, i]));
+    for (const v of ventas) {
+      const k = keyDia(startOfDay(new Date(v.created_at)));
+      const i = index.get(k);
+      if (i === undefined) continue;
+      buckets[i].total += Number(v.total) || 0;
+      buckets[i].cantidad += 1;
     }
   } else {
-    const este = startOfMonth(ahora);
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(este.getFullYear(), este.getMonth() - i, 1);
+    const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+    const last = new Date(fin.getFullYear(), fin.getMonth(), 1);
+    while (cursor <= last) {
       buckets.push({
-        key: keyMes(d),
-        label: fmtMes(d),
+        key: keyMes(cursor),
+        label: fmtMes(cursor),
         total: 0,
         cantidad: 0,
       });
+      cursor.setMonth(cursor.getMonth() + 1);
     }
-  }
-
-  const index = new Map(buckets.map((b, i) => [b.key, i]));
-
-  for (const v of ventas) {
-    const d = new Date(v.created_at);
-    let k: string;
-    if (periodo === "dias") k = keyDia(startOfDay(d));
-    else if (periodo === "semanas") k = keySemana(d);
-    else k = keyMes(d);
-
-    const i = index.get(k);
-    if (i === undefined) continue;
-    buckets[i].total += Number(v.total) || 0;
-    buckets[i].cantidad += 1;
+    const index = new Map(buckets.map((b, i) => [b.key, i]));
+    for (const v of ventas) {
+      const k = keyMes(new Date(v.created_at));
+      const i = index.get(k);
+      if (i === undefined) continue;
+      buckets[i].total += Number(v.total) || 0;
+      buckets[i].cantidad += 1;
+    }
   }
 
   return buckets;
+}
+
+export function presetHoy(ahora = new Date()) {
+  const d = startOfDay(ahora);
+  return { from: d, to: d };
+}
+
+export function preset7Dias(ahora = new Date()) {
+  const to = startOfDay(ahora);
+  return { from: addDays(to, -6), to };
+}
+
+export function presetMes(ahora = new Date()) {
+  const to = startOfDay(ahora);
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  return { from, to };
 }
