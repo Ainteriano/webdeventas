@@ -6,12 +6,9 @@ import { formatPrice } from "@/lib/format";
 import {
   agruparVentasRango,
   formatRangoLabel,
-  preset7Dias,
   presetHoy,
-  presetMes,
   type VentaPunto,
 } from "@/lib/ventas-chart";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,18 +19,11 @@ import {
 } from "@/components/ui/card";
 import { DateRangeCalendar } from "@/components/admin/date-range-calendar";
 
-const ATAJOS = [
-  { key: "hoy", label: "Hoy", get: presetHoy },
-  { key: "7d", label: "7 días", get: preset7Dias },
-  { key: "mes", label: "Este mes", get: presetMes },
-] as const;
-
 export function VentasChart({ puntos }: { puntos: VentaPunto[] }) {
-  const inicial = preset7Dias();
+  const inicial = presetHoy();
   const [from, setFrom] = useState(inicial.from);
   const [to, setTo] = useState(inicial.to);
   const [showCal, setShowCal] = useState(false);
-  const [atajo, setAtajo] = useState<"hoy" | "7d" | "mes" | "custom">("7d");
 
   const barras = useMemo(
     () => agruparVentasRango(puntos, from, to),
@@ -43,12 +33,6 @@ export function VentasChart({ puntos }: { puntos: VentaPunto[] }) {
   const max = Math.max(1, ...barras.map((b) => b.total));
   const totalPeriodo = barras.reduce((s, b) => s + b.total, 0);
   const cantidadPeriodo = barras.reduce((s, b) => s + b.cantidad, 0);
-
-  function applyRange(nextFrom: Date, nextTo: Date, nextAtajo: typeof atajo) {
-    setFrom(nextFrom);
-    setTo(nextTo);
-    setAtajo(nextAtajo);
-  }
 
   return (
     <Card>
@@ -61,48 +45,28 @@ export function VentasChart({ puntos }: { puntos: VentaPunto[] }) {
               {cantidadPeriodo === 1 ? "" : "s"} · {formatPrice(totalPeriodo)}
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border bg-muted/40 p-1">
-              {ATAJOS.map((a) => (
-                <button
-                  key={a.key}
-                  type="button"
-                  onClick={() => {
-                    const r = a.get();
-                    applyRange(r.from, r.to, a.key);
-                    setShowCal(false);
-                  }}
-                  className={cn(
-                    "rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                    atajo === a.key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-            <Button
-              type="button"
-              variant={showCal || atajo === "custom" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowCal((v) => !v)}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Calendario
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant={showCal ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowCal((v) => !v)}
+          >
+            <CalendarDays className="h-4 w-4" />
+            {showCal ? "Cerrar" : "Elegir fechas"}
+          </Button>
         </div>
 
         {showCal && (
           <DateRangeCalendar
-            from={from}
-            to={to}
+            initialFrom={from}
+            initialTo={to}
             maxDate={new Date()}
-            onChange={(f, t) => {
-              applyRange(f, t, "custom");
+            onAccept={(f, t) => {
+              setFrom(f);
+              setTo(t);
+              setShowCal(false);
             }}
+            onCancel={() => setShowCal(false)}
           />
         )}
       </CardHeader>

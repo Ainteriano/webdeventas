@@ -10,7 +10,7 @@ const DIAS = ["L", "M", "X", "J", "V", "S", "D"];
 
 function monthMatrix(view: Date) {
   const first = new Date(view.getFullYear(), view.getMonth(), 1);
-  const startPad = (first.getDay() + 6) % 7; // lunes = 0
+  const startPad = (first.getDay() + 6) % 7;
   const start = addDays(startOfDay(first), -startPad);
   const weeks: Date[][] = [];
   let cursor = start;
@@ -26,20 +26,23 @@ function monthMatrix(view: Date) {
 }
 
 export function DateRangeCalendar({
-  from,
-  to,
-  onChange,
+  initialFrom,
+  initialTo,
+  onAccept,
+  onCancel,
   maxDate,
 }: {
-  from: Date | null;
-  to: Date | null;
-  onChange: (from: Date, to: Date) => void;
+  initialFrom: Date;
+  initialTo: Date;
+  onAccept: (from: Date, to: Date) => void;
+  onCancel: () => void;
   maxDate?: Date;
 }) {
-  const [view, setView] = useState(() => startOfDay(from || new Date()));
-  const [picking, setPicking] = useState<"from" | "to">(
-    from && !to ? "to" : "from"
-  );
+  const [view, setView] = useState(() => startOfDay(initialFrom));
+  const [draftFrom, setDraftFrom] = useState(() => startOfDay(initialFrom));
+  const [draftTo, setDraftTo] = useState(() => startOfDay(initialTo));
+  /** Si hay ancla, el próximo clic completa el rango (o deja 1 día si es el mismo). */
+  const [anchor, setAnchor] = useState<Date | null>(null);
 
   const weeks = useMemo(() => monthMatrix(view), [view]);
   const max = maxDate ? startOfDay(maxDate) : startOfDay(new Date());
@@ -49,32 +52,44 @@ export function DateRangeCalendar({
   });
 
   function inRange(day: Date) {
-    if (!from || !to) return false;
-    const t = day.getTime();
-    return t >= startOfDay(from).getTime() && t <= startOfDay(to).getTime();
+    const t = startOfDay(day).getTime();
+    const a = draftFrom.getTime();
+    const b = draftTo.getTime();
+    return t >= Math.min(a, b) && t <= Math.max(a, b);
   }
 
   function onDayClick(day: Date) {
     if (day > max) return;
+    const d = startOfDay(day);
 
-    if (picking === "from" || !from) {
-      onChange(day, day);
-      setPicking("to");
+    if (!anchor) {
+      // Un solo día seleccionado; listo para Aceptar, o segundo clic para rango
+      setDraftFrom(d);
+      setDraftTo(d);
+      setAnchor(d);
       return;
     }
 
-    if (picking === "to") {
-      if (day < startOfDay(from)) {
-        onChange(day, from);
-      } else {
-        onChange(from, day);
-      }
-      setPicking("from");
+    if (sameDay(d, anchor)) {
+      // Confirma 1 día
+      setDraftFrom(d);
+      setDraftTo(d);
+      setAnchor(null);
+      return;
     }
+
+    if (d < anchor) {
+      setDraftFrom(d);
+      setDraftTo(anchor);
+    } else {
+      setDraftFrom(anchor);
+      setDraftTo(d);
+    }
+    setAnchor(null);
   }
 
   return (
-    <div className="w-[min(100%,280px)] rounded-xl border bg-card p-3 shadow-sm">
+    <div className="w-[min(100%,300px)] rounded-xl border bg-card p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <Button
           type="button"
@@ -113,8 +128,8 @@ export function DateRangeCalendar({
         {weeks.flat().map((day) => {
           const outside = day.getMonth() !== view.getMonth();
           const disabled = day > max;
-          const isFrom = from ? sameDay(day, from) : false;
-          const isTo = to ? sameDay(day, to) : false;
+          const isFrom = sameDay(day, draftFrom);
+          const isTo = sameDay(day, draftTo);
           const selected = isFrom || isTo;
           const mid = inRange(day) && !selected;
 
@@ -140,10 +155,28 @@ export function DateRangeCalendar({
       </div>
 
       <p className="mt-2 text-[11px] text-muted-foreground">
-        {picking === "to"
-          ? "Elige la fecha final"
-          : "Elige la fecha inicial (luego la final)"}
+        {sameDay(draftFrom, draftTo)
+          ? "1 día seleccionado. Puedes tocar otro día para un rango, o Aceptar."
+          : "Rango listo. Toca Aceptar o elige otra fecha para empezar de nuevo."}
       </p>
+
+      <div className="mt-3 flex gap-2">
+        <Button
+          type="button"
+          className="flex-1"
+          onClick={() => onAccept(draftFrom, draftTo)}
+        >
+          Aceptar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={onCancel}
+        >
+          Cancelar
+        </Button>
+      </div>
     </div>
   );
 }
