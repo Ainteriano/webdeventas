@@ -89,18 +89,13 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          {editing
-            ? "Editando ajustes"
-            : "Solo visualización. Activa editar para modificar."}
-        </p>
+      <div className="flex flex-wrap justify-end gap-2">
         {!editing ? (
           <Button type="button" onClick={startEdit}>
             Editar
           </Button>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button type="button" onClick={save} disabled={pending}>
               {pending ? "Guardando…" : "Guardar cambios"}
             </Button>
@@ -112,7 +107,7 @@ export function ConfigForm({ config }: { config: ConfiguracionSitio }) {
             >
               Descartar cambios
             </Button>
-          </div>
+          </>
         )}
       </div>
 
