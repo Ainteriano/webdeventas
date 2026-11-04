@@ -105,11 +105,11 @@ export function ProductoForm({
     resolver: zodResolver(productoSchema),
     defaultValues: {
       nombre: producto?.nombre || "",
-      slug: producto?.slug || "",
+      slug: producto?.slug || undefined,
       descripcion: producto?.descripcion || "",
       precio: producto?.precio ?? 0,
       stock: producto?.stock ?? 1,
-      talla: producto?.talla || "",
+      talla: producto?.talla || formatTallaAmericana("8", "M"),
       categoria_id: producto?.categoria_id || categorias[0]?.id || "",
       subcategoria_id: producto?.subcategoria_id || null,
       disponible: producto?.disponible ?? true,
@@ -191,39 +191,65 @@ export function ProductoForm({
 
   function onSubmit(values: FormValues) {
     setError(null);
+    const payload = {
+      ...values,
+      talla: formatTallaAmericana(tallaNumero, tallaGenero),
+      slug: values.slug?.trim() || undefined,
+      subcategoria_id: values.subcategoria_id || null,
+    };
     startTransition(async () => {
-      if (producto) {
-        const res = await actualizarProducto(producto.id, values);
-        if (res.error) {
-          setError(res.error);
-          return;
-        }
-        router.push(`${adminPath}/productos`);
-        router.refresh();
-        return;
-      }
-
-      const res = await crearProducto(values);
-      if (res.error || !("id" in res) || !res.id) {
-        setError(res.error || "No se pudo crear");
-        return;
-      }
-
-      for (const item of pendingFiles) {
-        const fd = new FormData();
-        fd.append("file", item.file);
-        const up = await subirImagenProducto(res.id, fd);
-        if (up.error) {
-          setError(up.error);
-          router.push(`${adminPath}/productos/${res.id}`);
+      try {
+        if (producto) {
+          const res = await actualizarProducto(producto.id, payload);
+          if (res.error) {
+            setError(res.error);
+            return;
+          }
+          router.push(`${adminPath}/productos`);
           router.refresh();
           return;
         }
-      }
 
-      router.push(`${adminPath}/productos`);
-      router.refresh();
+        const res = await crearProducto(payload);
+        if (res.error || !("id" in res) || !res.id) {
+          setError(res.error || "No se pudo crear");
+          return;
+        }
+
+        for (const item of pendingFiles) {
+          const fd = new FormData();
+          fd.append("file", item.file);
+          const up = await subirImagenProducto(res.id, fd);
+          if (up.error) {
+            setError(
+              `Producto creado, pero falló una foto: ${up.error}`
+            );
+            router.push(`${adminPath}/productos/${res.id}`);
+            router.refresh();
+            return;
+          }
+        }
+
+        router.push(`${adminPath}/productos`);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Error al guardar el producto"
+        );
+      }
     });
+  }
+
+  function onInvalid() {
+    const first =
+      errors.nombre?.message ||
+      errors.talla?.message ||
+      errors.precio?.message ||
+      errors.stock?.message ||
+      errors.categoria_id?.message ||
+      errors.slug?.message ||
+      "Revisa los datos del formulario";
+    setError(first);
   }
 
   async function onUploadExisting(fileList: FileList | null) {
@@ -263,7 +289,7 @@ export function ProductoForm({
   const photoCount = producto ? imgs.length : pendingFiles.length;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
       {/* Fotos */}
       <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
         <div className="flex items-center justify-between">
@@ -530,8 +556,8 @@ export function ProductoForm({
             <Select
               value={categoriaId}
               onValueChange={(v) => {
-                setValue("categoria_id", v);
-                setValue("subcategoria_id", null);
+                setValue("categoria_id", v, { shouldValidate: true });
+                setValue("subcategoria_id", null, { shouldValidate: true });
               }}
             >
               <SelectTrigger>
@@ -600,7 +626,13 @@ export function ProductoForm({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={pending} className="min-w-[120px]">
-          {producto ? "Guardar" : "Crear"}
+          {pending
+            ? producto
+              ? "Guardando…"
+              : "Creando…"
+            : producto
+              ? "Guardar"
+              : "Crear producto"}
         </Button>
         <Button
           type="button"

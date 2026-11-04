@@ -27,21 +27,34 @@ export async function crearProducto(input: unknown) {
   await assertAdmin();
   const parsed = productoSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos", details: parsed.error.flatten() };
+    const msg =
+      parsed.error.errors[0]?.message || "Datos inválidos del producto";
+    return { error: msg, details: parsed.error.flatten() };
   }
   const data = parsed.data;
   const slug = data.slug?.trim() || slugify(data.nombre);
-  const supabase = createClient();
-  const { data: row, error } = await supabase
+  // Service role: evita fallos silenciosos de RLS al crear
+  const admin = createAdminClient();
+  const { data: row, error } = await admin
     .from("productos")
     .insert({
-      ...data,
+      nombre: data.nombre,
       slug,
+      descripcion: data.descripcion || "",
+      precio: data.precio,
+      stock: data.stock,
+      talla: data.talla,
+      categoria_id: data.categoria_id,
       subcategoria_id: data.subcategoria_id || null,
+      disponible: data.disponible,
+      activo: data.activo,
     })
     .select("id")
     .single();
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("[crearProducto]", error);
+    return { error: error.message };
+  }
   revalidateProductos();
   return { ok: true, id: row.id };
 }

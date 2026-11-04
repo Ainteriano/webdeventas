@@ -22,7 +22,11 @@ export const subcategoriaSchema = z.object({
 
 export const productoSchema = z.object({
   nombre: z.string().min(1, "Nombre requerido").max(200),
-  slug: z.string().min(1).max(220).optional(),
+  // Vacío = se genera desde el nombre en el servidor
+  slug: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(1).max(220).optional()
+  ),
   descripcion: z.string().max(5000).default(""),
   precio: z.coerce.number().min(0, "Precio inválido"),
   stock: z.coerce.number().int().min(0, "Stock inválido"),
@@ -35,7 +39,10 @@ export const productoSchema = z.object({
       "Usa talla americana: número + M (hombre) o W (mujer). Ej. 8M, 7W"
     ),
   categoria_id: z.string().uuid("Categoría inválida"),
-  subcategoria_id: z.string().uuid().nullable().optional(),
+  subcategoria_id: z.preprocess(
+    (v) => (v === "" || v === "none" ? null : v),
+    z.string().uuid().nullable().optional()
+  ),
   disponible: z.boolean().default(true),
   activo: z.boolean().default(true),
 });
